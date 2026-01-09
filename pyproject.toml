@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agrodesign"
+version = "0.1.0"
+description = "Design of Experiments and statistical analysis for agricultural research"
+authors = [
+    { name = "Aqib Gul", email = "maaqib90@gmail.com" }
+]
+requires-python = ">=3.12"
+
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "statsmodels",
+    "matplotlib"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
