@@ -105,3 +105,32 @@ class Anova:
             self.error_ms = table.loc["Residual", "MS"]
 
         return table[cols]
+    def factorial_means(self, factor_a, factor_b=None):
+        """
+        Compute means for factorial experiments
+        """
+        if self.model is None:
+            raise RuntimeError("Run factorial ANOVA before computing means")
+
+        if factor_b is None:
+            # Main effect means
+            means = (
+                self.data
+                .groupby(factor_a)[self.response]
+                .agg(Mean="mean", Replications="count")
+                .reset_index()
+            )
+        else:
+            # Interaction means
+            means = (
+                self.data
+                .groupby([factor_a, factor_b])[self.response]
+                .agg(Mean="mean", Replications="count")
+                .reset_index()
+            )
+
+        self.means_table = means
+        return means
+
+
+
