@@ -10,7 +10,7 @@ def test_tukey_factorial_main_effect():
     })
 
     aov = Anova(df, response="Yield")
-    aov.factorial("A", "A")   # harmless for test
+    aov.factorial(['A'])   # harmless for test
 
     tukey = TukeyHSD(aov, factor="A")
     result = tukey.test()

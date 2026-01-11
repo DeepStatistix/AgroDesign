@@ -8,41 +8,71 @@ class TukeyHSD:
     """
 
     def __init__(self, anova, factor, alpha=0.05):
+        """
+        Parameters
+        ----------
+        anova : Anova object
+            Fitted ANOVA model
+        factor : str or list/tuple of str
+            "A" → main effect
+            ["A","B"] → A×B
+            ["A","B","C"] → A×B×C
+        alpha : float
+            Significance level
+        """
         if anova.model is None:
             raise RuntimeError("Run ANOVA before Tukey HSD")
 
         self.anova = anova
-        self.factor = factor
         self.alpha = alpha
         self.data = anova.data.copy()
         self.response = anova.response
 
-        # Handle interaction
-        if isinstance(factor, tuple):
-            self.factor_name = ":".join(factor)
-            self.data[self.factor_name] = (
-                self.data[factor[0]].astype(str) + ":" +
-                self.data[factor[1]].astype(str)
-            )
+        # Normalize factor input
+        if isinstance(factor, str):
+            self.factors = [factor]
+        elif isinstance(factor, (list, tuple)):
+            self.factors = list(factor)
         else:
-            self.factor_name = factor
+            raise ValueError("factor must be a string or list/tuple of strings")
+
+        # Validate columns
+        for f in self.factors:
+            if f not in self.data.columns:
+                raise ValueError(f"Factor '{f}' not found in data")
+
+        # Create interaction factor internally
+        if len(self.factors) == 1:
+            self.factor_name = self.factors[0]
+        else:
+            self.factor_name = ":".join(self.factors)
+            self.data[self.factor_name] = (
+                self.data[self.factors]
+                .astype(str)
+                .agg(":".join, axis=1)
+            )
 
     def test(self):
+        """
+        Perform Tukey HSD test and assign grouping letters
+        """
         tukey = pairwise_tukeyhsd(
             endog=self.data[self.response],
             groups=self.data[self.factor_name],
             alpha=self.alpha
         )
 
-        results = pd.DataFrame(
+        self.pairwise = pd.DataFrame(
             tukey.summary().data[1:],
             columns=tukey.summary().data[0]
         )
 
-        self.pairwise = results
-        return self._group_means(results)
+        return self._group_means()
 
-    def _group_means(self, results):
+    def _group_means(self):
+        """
+        Assign grouping letters using full Tukey pairwise logic
+        """
         means = (
             self.data
             .groupby(self.factor_name)[self.response]
@@ -55,22 +85,23 @@ class TukeyHSD:
         groups = ["a"]
 
         for i in range(1, len(means)):
-            sig = False
+            letter = "a"
             for j in range(i):
-                row = results[
-                    ((results["group1"] == means.loc[j, self.factor_name]) &
-                     (results["group2"] == means.loc[i, self.factor_name])) |
-                    ((results["group1"] == means.loc[i, self.factor_name]) &
-                     (results["group2"] == means.loc[j, self.factor_name]))
+                row = self.pairwise[
+                    (
+                        (self.pairwise["group1"] == means.loc[j, self.factor_name]) &
+                        (self.pairwise["group2"] == means.loc[i, self.factor_name])
+                    ) |
+                    (
+                        (self.pairwise["group1"] == means.loc[i, self.factor_name]) &
+                        (self.pairwise["group2"] == means.loc[j, self.factor_name])
+                    )
                 ]
 
                 if not row.empty and row["reject"].values[0]:
-                    sig = True
+                    letter = chr(ord(letter) + 1)
 
-            if sig:
-                groups.append(chr(ord(groups[-1]) + 1))
-            else:
-                groups.append(groups[-1])
+            groups.append(letter)
 
         means["Group"] = groups
         self.grouped_means = means

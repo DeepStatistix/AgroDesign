@@ -13,77 +13,57 @@ class LSD:
         Parameters
         ----------
         anova : Anova object
-            Fitted ANOVA model
+            Fitted ANOVA model (ANOVA + means already computed)
         alpha : float
             Significance level
         """
         if not hasattr(anova, "means_table"):
-            raise RuntimeError("Run means() before LSD test")
+            raise RuntimeError("Run means() or factorial_means() before LSD test")
 
         self.anova = anova
         self.alpha = alpha
-
         self.means = anova.means_table.copy()
+
         self.error_ms = anova.error_ms
         self.error_df = anova.error_df
 
+        # Identify grouping columns (all except Mean, Replications)
+        self.group_cols = [
+            c for c in self.means.columns
+            if c not in ("Mean", "Replications")
+        ]
+
     def test(self):
         """
-        Perform LSD test
+        Perform LSD test and assign grouping letters
         """
-        # Average replications
+        # Balanced-design assumption (documented)
         r = self.means["Replications"].mean()
 
         # t critical
         t_crit = t.ppf(1 - self.alpha / 2, self.error_df)
 
         # LSD value
-        lsd = t_crit * np.sqrt(2 * self.error_ms / r)
-
-        self.lsd_value = lsd
-
-        # Pairwise comparisons
-        comparisons = []
-
-        for i in range(len(self.means)):
-            for j in range(i + 1, len(self.means)):
-                m1 = self.means.loc[i, "Mean"]
-                m2 = self.means.loc[j, "Mean"]
-
-                diff = abs(m1 - m2)
-                sig = "Yes" if diff > lsd else "No"
-
-                comparisons.append({
-                    "Treatment 1": self.means.loc[i, self.means.columns[0]],
-                    "Treatment 2": self.means.loc[j, self.means.columns[0]],
-                    "Mean Diff": diff,
-                    "Significant": sig
-                })
-
-        self.comparisons = pd.DataFrame(comparisons)
+        self.lsd_value = t_crit * np.sqrt(2 * self.error_ms / r)
 
         return self._group_means()
 
     def _group_means(self):
         """
-        Assign grouping letters (a, b, c...)
+        Assign grouping letters using full pairwise comparison
         """
         means = self.means.sort_values("Mean", ascending=False).reset_index(drop=True)
-        groups = []
-        current_group = "a"
 
-        for i in range(len(means)):
-            if i == 0:
-                groups.append(current_group)
-            else:
-                diff = abs(means.loc[i - 1, "Mean"] - means.loc[i, "Mean"])
-                if diff <= self.lsd_value:
-                    groups.append(current_group)
-                else:
-                    current_group = chr(ord(current_group) + 1)
-                    groups.append(current_group)
+        groups = ["a"]
+
+        for i in range(1, len(means)):
+            letter = "a"
+            for j in range(i):
+                diff = abs(means.loc[j, "Mean"] - means.loc[i, "Mean"])
+                if diff > self.lsd_value:
+                    letter = chr(ord(letter) + 1)
+            groups.append(letter)
 
         means["Group"] = groups
         self.grouped_means = means
-
         return means

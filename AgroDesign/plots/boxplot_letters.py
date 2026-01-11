@@ -12,7 +12,8 @@ def boxplot_letters(
     ylabel="Response",
     title=None,
     alpha=0.05,
-    figsize=(6, 4)
+    figsize=(6, 4),
+    show=True
 ):
     """
     Boxplot with grouping letters (LSD / Tukey)
@@ -20,8 +21,8 @@ def boxplot_letters(
     Parameters
     ----------
     aov : Anova object
-    factor : str or tuple
-        'A', 'B', or ('A','B')
+    factor : str or list/tuple of str
+        "A", ["A","B"], ["A","B","C"]
     method : str
         'tukey' or 'lsd'
     """
@@ -29,28 +30,42 @@ def boxplot_letters(
     data = aov.data.copy()
     response = response or aov.response
 
-    # Handle interaction internally
-    if isinstance(factor, tuple):
-        factor_name = ":".join(factor)
-        data[factor_name] = (
-            data[factor[0]].astype(str) + ":" +
-            data[factor[1]].astype(str)
-        )
+    # Normalize factor input
+    if isinstance(factor, str):
+        factors = [factor]
+    elif isinstance(factor, (list, tuple)):
+        factors = list(factor)
     else:
-        factor_name = factor
+        raise ValueError("factor must be a string or list/tuple")
 
-    # Mean separation
+    # Validate factors
+    for f in factors:
+        if f not in data.columns:
+            raise ValueError(f"Factor '{f}' not found in data")
+
+    # Interaction name
+    factor_name = factors[0] if len(factors) == 1 else ":".join(factors)
+
+    # Create interaction column ONLY for plotting
+    if len(factors) > 1:
+        data[factor_name] = (
+            data[factors]
+            .astype(str)
+            .agg(":".join, axis=1)
+        )
+
+    # Mean separation (delegated correctly)
     if method == "tukey":
-        sep = TukeyHSD(aov, factor=factor, alpha=alpha)
+        sep = TukeyHSD(aov, factor=factors, alpha=alpha)
         means = sep.test()
     elif method == "lsd":
-        aov.means(factor_name)
+        aov.factorial_means(factors)
         sep = LSD(aov, alpha=alpha)
         means = sep.test()
     else:
         raise ValueError("method must be 'tukey' or 'lsd'")
 
-    # Boxplot data
+    # Prepare boxplot data
     groups = data[factor_name].unique()
     box_data = [data[data[factor_name] == g][response] for g in groups]
 
@@ -65,10 +80,10 @@ def boxplot_letters(
     for box in bp["boxes"]:
         box.set(facecolor="lightgray", edgecolor="black")
 
-    
+    # Add grouping letters (correct placement)
     for i, g in enumerate(groups):
-        y_max_box = max(box_data[i])          # top of THIS box
-        offset = 0.03 * y_max_box             # small relative offset
+        y_max_box = max(box_data[i])
+        offset = 0.03 * y_max_box
 
         letter = means.loc[means[factor_name] == g, "Group"].values
         if len(letter):
@@ -82,3 +97,13 @@ def boxplot_letters(
                 fontweight="bold"
             )
 
+    plt.ylabel(ylabel)
+    plt.xlabel(factor_name)
+    if title:
+        plt.title(title)
+
+    plt.tight_layout()
+    if show:
+        plt.show()
+    else:
+        plt.close()

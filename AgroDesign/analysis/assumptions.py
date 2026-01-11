@@ -48,34 +48,68 @@ class Assumptions:
     def levene_test(self, group):
         """
         Levene's test for homogeneity of variances
+
+        group : str or list/tuple of str
+            e.g. "A", "B", ["A","B"], ["A","B","C"]
         """
+        data = self.data.copy()
+
+        if isinstance(group, (list, tuple)):
+            group_name = ":".join(group)
+            data[group_name] = data[group].astype(str).agg(":".join, axis=1)
+        else:
+            group_name = group
+
+        if group_name not in data.columns:
+            raise ValueError(
+                f"Grouping factor '{group}' not found in data columns: "
+                f"{list(data.columns)}"
+            )
+
         groups = [
             grp[self.response].values
-            for _, grp in self.data.groupby(group)
+            for _, grp in data.groupby(group_name)
         ]
 
         stat, p = levene(*groups)
         return {
             "Test": "Levene",
+            "Grouping": group_name,
             "Statistic": stat,
             "p-value": p,
             "Homogeneous": "Yes" if p > 0.05 else "No"
         }
-
+    
     def bartlett_test(self, group):
         """
         Bartlett's test for homogeneity of variances
         (Use only if normality holds)
         """
+        data = self.data.copy()
+
+        if isinstance(group, (list, tuple)):
+            group_name = ":".join(group)
+            data[group_name] = data[group].astype(str).agg(":".join, axis=1)
+        else:
+            group_name = group
+
+        if group_name not in data.columns:
+            raise ValueError(
+                f"Grouping factor '{group}' not found in data columns: "
+                f"{list(data.columns)}"
+            )
+
         groups = [
             grp[self.response].values
-            for _, grp in self.data.groupby(group)
+            for _, grp in data.groupby(group_name)
         ]
 
         stat, p = bartlett(*groups)
         return {
             "Test": "Bartlett",
+            "Grouping": group_name,
             "Statistic": stat,
             "p-value": p,
             "Homogeneous": "Yes" if p > 0.05 else "No"
         }
+

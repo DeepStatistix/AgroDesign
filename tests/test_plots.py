@@ -13,6 +13,6 @@ def test_boxplot_letters_runs():
     })
 
     aov = Anova(df, response="Yield")
-    aov.factorial("A", "A")
+    aov.factorial(['A'])
 
-    boxplot_letters(aov, factor="A")
+    boxplot_letters(aov, factor="A", show=False)
