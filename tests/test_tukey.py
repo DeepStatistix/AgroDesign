@@ -12,7 +12,7 @@ def test_tukey_factorial_main_effect():
     aov = Anova(df, response="Yield")
     aov.factorial(['A'])   # harmless for test
 
-    tukey = TukeyHSD(aov, factor="A")
+    tukey = TukeyHSD(aov, effect="A")
     result = tukey.test()
 
     assert "Group" in result.columns

@@ -12,5 +12,9 @@ def test_split_plot_runs():
     aov = Anova(df, response="Yield")
     table = aov.split_plot("A", "B", "Rep")
 
-    assert "C(A)" in table.index
-    assert "C(Rep):C(A)" in table.index
+    assert 'C(A)' in table.index
+
+    assert 'C(Rep):C(A)' in table.index
+    assert 'Residual' in table.index
+
+

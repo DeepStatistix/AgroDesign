@@ -1,22 +1,22 @@
+import numpy as np
 import pandas as pd
-from statsmodels.stats.multicomp import pairwise_tukeyhsd
+from statsmodels.stats.libqsturng import qsturng
 
 
 class TukeyHSD:
     """
     Tukey Honest Significant Difference (HSD) test
+    (CRD, RCBD, factorial, split-plot, split–split aware)
     """
 
-    def __init__(self, anova, factor, alpha=0.05):
+    def __init__(self, anova, effect, alpha=0.05):
         """
         Parameters
         ----------
         anova : Anova object
             Fitted ANOVA model
-        factor : str or list/tuple of str
-            "A" → main effect
-            ["A","B"] → A×B
-            ["A","B","C"] → A×B×C
+        effect : str or list/tuple
+            "A", ["A","B"], "A:B", ["A","B","C"]
         alpha : float
             Significance level
         """
@@ -25,82 +25,102 @@ class TukeyHSD:
 
         self.anova = anova
         self.alpha = alpha
-        self.data = anova.data.copy()
-        self.response = anova.response
 
-        # Normalize factor input
-        if isinstance(factor, str):
-            self.factors = [factor]
-        elif isinstance(factor, (list, tuple)):
-            self.factors = list(factor)
+        # --------------------------------------------------
+        # Normalize effect
+        # --------------------------------------------------
+        if isinstance(effect, str):
+            if ":" in effect:
+                self.factors = effect.split(":")
+            else:
+                self.factors = [effect]
+        elif isinstance(effect, (list, tuple)):
+            self.factors = list(effect)
         else:
-            raise ValueError("factor must be a string or list/tuple of strings")
+            raise ValueError("effect must be str or list/tuple")
 
-        # Validate columns
-        for f in self.factors:
-            if f not in self.data.columns:
-                raise ValueError(f"Factor '{f}' not found in data")
+        self.effect = ":".join(self.factors)
 
-        # Create interaction factor internally
+        # --------------------------------------------------
+        # AUTO-COMPUTE MEANS (KEY FIX)
+        # --------------------------------------------------
+        anova.factorial_means(self.factors)
+        self.means = anova.means_table.copy()
+
+        # --------------------------------------------------
+        # Select correct error term
+        # --------------------------------------------------
+        self.error_df, self.error_ms = self._select_error_term()
+
+    # ==================================================
+    # Error-term selection (design-aware, safe fallback)
+    # ==================================================
+    def _select_error_term(self):
+        """
+        Select appropriate error DF and MS
+        """
+        # Default: residual
+        df = self.anova.error_df
+        ms = self.anova.error_ms
+
+        if not hasattr(self.anova, "error_terms"):
+            return df, ms
+
+        et = self.anova.error_terms
+
+        # Main effects
         if len(self.factors) == 1:
-            self.factor_name = self.factors[0]
-        else:
-            self.factor_name = ":".join(self.factors)
-            self.data[self.factor_name] = (
-                self.data[self.factors]
-                .astype(str)
-                .agg(":".join, axis=1)
-            )
+            if self.factors[0] == "A":
+                return et.get("whole_plot", (df, ms))
+            if self.factors[0] == "B":
+                return et.get("sub_plot", (df, ms))
+            return df, ms
 
+        # Interactions
+        if len(self.factors) >= 2:
+            return et.get("residual", (df, ms))
+
+        return df, ms
+
+    # ==================================================
+    # Tukey HSD test
+    # ==================================================
     def test(self):
         """
-        Perform Tukey HSD test and assign grouping letters
-        """
-        tukey = pairwise_tukeyhsd(
-            endog=self.data[self.response],
-            groups=self.data[self.factor_name],
-            alpha=self.alpha
-        )
-
-        self.pairwise = pd.DataFrame(
-            tukey.summary().data[1:],
-            columns=tukey.summary().data[0]
-        )
-
-        return self._group_means()
-
-    def _group_means(self):
-        """
-        Assign grouping letters using full Tukey pairwise logic
+        Perform Tukey HSD and assign grouping letters
         """
         means = (
-            self.data
-            .groupby(self.factor_name)[self.response]
-            .mean()
-            .reset_index(name="Mean")
+            self.means
             .sort_values("Mean", ascending=False)
             .reset_index(drop=True)
         )
 
+        k = len(means)
+        r = means["Replications"].mean()
+
+        # Studentized range critical value
+        q_crit = qsturng(1 - self.alpha, k, self.error_df)
+
+        # HSD value
+        self.hsd_value = q_crit * np.sqrt(self.error_ms / r)
+
+        return self._group_means(means)
+
+    # ==================================================
+    # Grouping logic
+    # ==================================================
+    def _group_means(self, means):
+        """
+        Assign grouping letters using Tukey logic
+        """
         groups = ["a"]
 
         for i in range(1, len(means)):
             letter = "a"
             for j in range(i):
-                row = self.pairwise[
-                    (
-                        (self.pairwise["group1"] == means.loc[j, self.factor_name]) &
-                        (self.pairwise["group2"] == means.loc[i, self.factor_name])
-                    ) |
-                    (
-                        (self.pairwise["group1"] == means.loc[i, self.factor_name]) &
-                        (self.pairwise["group2"] == means.loc[j, self.factor_name])
-                    )
-                ]
-
-                if not row.empty and row["reject"].values[0]:
+                diff = abs(means.loc[j, "Mean"] - means.loc[i, "Mean"])
+                if diff > self.hsd_value:
                     letter = chr(ord(letter) + 1)
-
             groups.append(letter)
 
         means["Group"] = groups

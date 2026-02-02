@@ -120,6 +120,7 @@ class Anova:
             self.error_ms = table.loc["Residual", "MS"]
 
         return table[cols]
+    
     def factorial_means(self, factors):
         """
         Compute means for main effects or interactions
@@ -151,41 +152,59 @@ class Anova:
         self.means_table = means
         return means
     
-    def split_plot(self, whole_plot, sub_plot, block):
+    def split_plot(self, whole_plot, sub_plot, block, sub_sub_plot=None):
         """
-        Split-Plot ANOVA
-
-        Parameters
-        ----------
-        whole_plot : str
-            Whole-plot factor (e.g. A)
-        sub_plot : str
-            Sub-plot factor (e.g. B)
-        block : str
-            Replication / block factor
+        Split-Plot and Split–Split Plot ANOVA (balanced designs)
         """
 
-        formula = (
-            f"{self.response} ~ "
-            f"C({block}) + "
-            f"C({whole_plot}) + "
-            f"C({block}):C({whole_plot}) + "
-            f"C({sub_plot}) + "
-            f"C({whole_plot}):C({sub_plot})"
+        factors = [block, whole_plot, sub_plot]
+        if sub_sub_plot:
+            factors.append(sub_sub_plot)
+
+        safe_data, mapping = self._make_safe_columns(factors)
+
+        R = mapping[block]
+        A = mapping[whole_plot]
+        B = mapping[sub_plot]
+
+        terms = [
+            f"C({R})",
+            f"C({A})",
+            f"C({R}):C({A})",
+            f"C({B})",
+            f"C({A}):C({B})"
+        ]
+
+        if sub_sub_plot:
+            C_ = mapping[sub_sub_plot]
+            terms += [
+                f"C({R}):C({A}):C({B})",
+                f"C({C_})",
+                f"C({A}):C({C_})",
+                f"C({B}):C({C_})",
+                f"C({A}):C({B}):C({C_})"
+            ]
+
+        formula = f"{self.response} ~ " + " + ".join(terms)
+
+        self.model = ols(formula, data=safe_data).fit()
+        self.anova_table = sm.stats.anova_lm(self.model, typ=1)
+
+        table = self._format_splitplot_anova(
+            whole_plot=A,
+            sub_plot=B,
+            block=R,
+            sub_sub_plot=mapping[sub_sub_plot] if sub_sub_plot else None
         )
 
-        self.model = ols(formula, data=self.data).fit()
-        self.anova_table = sm.stats.anova_lm(self.model, typ=2)
+        return self._restore_index(table, mapping)
 
-        return self._format_splitplot_anova(
-            whole_plot=whole_plot,
-            block=block
-        )
-        
-    def _format_splitplot_anova(self, whole_plot, block):
+
+ 
+    def _format_splitplot_anova(self, whole_plot, sub_plot, block, sub_sub_plot=None):
         """
-        Format ANOVA table for Split-Plot design
-        (correct whole-plot F-test)
+        Format ANOVA table for Split-Plot and Split–Split Plot designs
+        using correct error strata (Type-I SS).
         """
         from scipy.stats import f
 
@@ -200,18 +219,19 @@ class Anova:
 
         table["MS"] = table["SS"] / table["DF"]
 
-        # Identify whole-plot error term
+        # --- WHOLE-PLOT ERROR ---
         wp_error = f"C({block}):C({whole_plot})"
         wp_factor = f"C({whole_plot})"
 
         if wp_error not in table.index:
-            raise RuntimeError("Whole-plot error term not found for split-plot design")
+            raise RuntimeError(
+                f"Whole-plot error term '{wp_error}' not found in ANOVA table.\n"
+                f"Available terms: {list(table.index)}"
+            )
 
         # Correct F-test for whole-plot factor
-        ms_wp_error = table.loc[wp_error, "MS"]
-
         table.loc[wp_factor, "F"] = (
-            table.loc[wp_factor, "MS"] / ms_wp_error
+            table.loc[wp_factor, "MS"] / table.loc[wp_error, "MS"]
         )
 
         df1 = table.loc[wp_factor, "DF"]
@@ -221,12 +241,76 @@ class Anova:
             table.loc[wp_factor, "F"], df1, df2
         )
 
-        # Store residual error for mean separation (B and A×B)
-        if "Residual" in table.index:
-            self.error_df = table.loc["Residual", "DF"]
-            self.error_ms = table.loc["Residual", "MS"]
+        # --- SPLIT–SPLIT PLOT ---
+        if sub_sub_plot:
+            sp_error = f"C({block}):C({whole_plot}):C({sub_plot})"
+
+            if sp_error not in table.index:
+                raise RuntimeError(
+                    f"Sub-plot error term '{sp_error}' not found in ANOVA table.\n"
+                    f"Available terms: {list(table.index)}"
+                )
+
+            # Correct F-tests for B and A×B
+            for term in [
+                f"C({sub_plot})",
+                f"C({whole_plot}):C({sub_plot})"
+            ]:
+                table.loc[term, "F"] = (
+                    table.loc[term, "MS"] / table.loc[sp_error, "MS"]
+                )
+
+                df1 = table.loc[term, "DF"]
+                df2 = table.loc[sp_error, "DF"]
+
+                table.loc[term, "p-value"] = 1 - f.cdf(
+                    table.loc[term, "F"], df1, df2
+                )
+
+            # Store correct residual error for mean separation
+            if "Residual" in table.index:
+                self.error_df = table.loc["Residual", "DF"]
+                self.error_ms = table.loc["Residual", "MS"]
+
+        else:
+            # Classical split-plot
+            if "Residual" in table.index:
+                self.error_df = table.loc["Residual", "DF"]
+                self.error_ms = table.loc["Residual", "MS"]
 
         return table[["DF", "SS", "MS", "F", "p-value"]]
 
+    
+    def _make_safe_columns(self, cols):
+        """
+        Create a safe internal copy of data with renamed columns
+        to avoid Patsy keyword conflicts (C, I, Q, etc.)
+        """
+        mapping = {col: f"_F{i}" for i, col in enumerate(cols)}
+        safe_data = self.data.rename(columns=mapping)
+        return safe_data, mapping
+
+
+    def _restore_index(self, table, mapping):
+        """
+        Restore original factor names in ANOVA table index
+        """
+        inv = {v: k for k, v in mapping.items()}
+
+        new_index = []
+        for idx in table.index:
+            for safe, orig in inv.items():
+                idx = idx.replace(safe, orig)
+            new_index.append(idx)
+
+        table.index = new_index
+        return table
+
+    def _cat(self, name):
+        """
+        Safely wrap categorical variables for Patsy formulas
+        using backtick quoting (robust in notebooks)
+        """
+        return f'C(`{name}`)'
 
 

@@ -6,14 +6,18 @@ from scipy.stats import t
 class LSD:
     """
     Least Significant Difference (LSD) test
+    (design-aware: CRD, RCBD, factorial, split, split–split)
     """
 
-    def __init__(self, anova, alpha=0.05):
+    def __init__(self, anova, effect=None, alpha=0.05):
         """
         Parameters
         ----------
         anova : Anova object
-            Fitted ANOVA model (ANOVA + means already computed)
+            Fitted ANOVA model with means already computed
+        effect : str, optional
+            Effect being compared ("A", "B", "C", "A:B", etc.).
+            Required for split / split–split designs.
         alpha : float
             Significance level
         """
@@ -22,10 +26,8 @@ class LSD:
 
         self.anova = anova
         self.alpha = alpha
+        self.effect = effect
         self.means = anova.means_table.copy()
-
-        self.error_ms = anova.error_ms
-        self.error_df = anova.error_df
 
         # Identify grouping columns (all except Mean, Replications)
         self.group_cols = [
@@ -33,6 +35,46 @@ class LSD:
             if c not in ("Mean", "Replications")
         ]
 
+        # Select correct error term
+        self.error_df, self.error_ms = self._select_error_term()
+
+    # ------------------------------------------------------------------
+    # Error-term selection (core statistical fix)
+    # ------------------------------------------------------------------
+    def _select_error_term(self):
+        """
+        Select correct error DF and MS based on design hierarchy
+        """
+        # CRD / RCBD / simple factorial
+        if not hasattr(self.anova, "error_terms"):
+            return self.anova.error_df, self.anova.error_ms
+
+        et = self.anova.error_terms
+
+        # If effect not specified, fall back safely
+        if self.effect is None:
+            return et.get("residual", (self.anova.error_df, self.anova.error_ms))
+
+        # ---- Main effects ----
+        if ":" not in self.effect:
+            if self.effect == "A":
+                return et.get("whole_plot", et["residual"])
+            if self.effect == "B":
+                return et.get("sub_plot", et["residual"])
+            return et["residual"]  # C or lower-level factor
+
+        # ---- Two-way interactions ----
+        if self.effect.count(":") == 1:
+            if "B" in self.effect:
+                return et.get("sub_plot", et["residual"])
+            return et["residual"]
+
+        # ---- Three-way or higher ----
+        return et["residual"]
+
+    # ------------------------------------------------------------------
+    # LSD test
+    # ------------------------------------------------------------------
     def test(self):
         """
         Perform LSD test and assign grouping letters
@@ -48,21 +90,28 @@ class LSD:
 
         return self._group_means()
 
+    # ------------------------------------------------------------------
+    # Grouping letters
+    # ------------------------------------------------------------------
     def _group_means(self):
         """
-        Assign grouping letters using full pairwise comparison
+        Assign grouping letters using full pairwise LSD comparison
         """
-        means = self.means.sort_values("Mean", ascending=False).reset_index(drop=True)
+        means = (
+            self.means
+            .sort_values("Mean", ascending=False)
+            .reset_index(drop=True)
+        )
 
         groups = ["a"]
 
         for i in range(1, len(means)):
-            letter = "a"
+            current_letter = "a"
             for j in range(i):
                 diff = abs(means.loc[j, "Mean"] - means.loc[i, "Mean"])
                 if diff > self.lsd_value:
-                    letter = chr(ord(letter) + 1)
-            groups.append(letter)
+                    current_letter = chr(ord(current_letter) + 1)
+            groups.append(current_letter)
 
         means["Group"] = groups
         self.grouped_means = means
