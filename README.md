@@ -1,46 +1,62 @@
-agrodesign
+# agrodesign
 
-agrodesign is a Python package for Design of Experiments (DOE) and Analysis of Variance (ANOVA) in agricultural and biological research.
-It provides agricolae-style functionality in Python with support for classical and complex experimental designs, correct error structures, post-hoc mean separation, assumption checking, and journal-ready plots.
+**agrodesign** is a Python package for **Design of Experiments (DOE)** and **Analysis of Variance (ANOVA)** in agricultural and biological research.
 
-🚜 Why agrodesign?
+It provides **agricolae-style functionality in Python**, with correct handling of experimental design structure, error terms, post-hoc mean separation, assumption diagnostics, and journal-ready plots.
+
+---
+
+## 🚜 Why agrodesign?
 
 Most Python statistics libraries focus on generic modeling.
-agrodesign is built specifically for agricultural experiments, where design structure matters.
+
+**agrodesign is built specifically for agricultural experiments**, where **design structure matters**.
 
 It correctly handles:
 
-    blocking
-    factorial interactions
-    split-plot error strata
-    treatment mean separation
-    assumption diagnostics
+- Blocking
+- Factorial interactions
+- Split-plot error strata
+- Treatment and factor mean separation
+- Assumption diagnostics
 
-✨ Features
+---
 
-    Completely Randomized Design (CRD)
-    Randomized Complete Block Design (RCBD)
-    Factorial experiments (two or more factors)
-    Split-plot design with correct error terms
-    Mean separation tests:
-    Least Significant Difference (LSD)
-    Tukey’s Honest Significant Difference (HSD)
-    Assumption checks:
-    Shapiro–Wilk normality test
-    Levene’s test
-    Bartlett’s test
-    Publication-ready plots:
-    Mean plots with grouping letters
-    Boxplots with grouping letters
-    Fully tested using pytest
+## ✨ Features
 
-📦 Installation
-    Development installation
-    
-    git clone https://github.com/DeepStatistix/AgroDesign.git
-    cd AgroDesign
-    pip install -e .
-    (Planned: PyPI release)
+### Experimental Designs
+- Completely Randomized Design (CRD)
+- Randomized Complete Block Design (RCBD)
+- Factorial experiments (two or more factors)
+- Split-plot design with correct error terms
+
+### Mean Separation
+- Least Significant Difference (LSD)
+- Tukey’s Honest Significant Difference (HSD)
+
+### Assumption Checks
+- Shapiro–Wilk normality test
+- Levene’s test for homogeneity
+- Bartlett’s test (normal data)
+
+### Visualization
+- Mean plots with grouping letters
+- Boxplots with grouping letters
+
+### Reliability
+- Fully tested using **pytest**
+- Design-aware error handling
+
+---
+
+## 📦 Installation
+
+### Development installation
+
+```bash
+git clone https://github.com/DeepStatistix/AgroDesign.git
+cd AgroDesign
+pip install -e .
 
 🧠 Core Workflow
 
