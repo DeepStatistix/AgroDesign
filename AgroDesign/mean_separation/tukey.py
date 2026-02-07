@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from statsmodels.stats.libqsturng import qsturng
+from agrodesign.utils.cld import compact_letter_display
 
 
 class TukeyHSD:
@@ -9,78 +10,76 @@ class TukeyHSD:
     (CRD, RCBD, factorial, split-plot, split–split aware)
     """
 
-    def __init__(self, anova, effect, alpha=0.05):
+    def __init__(self, anova, effect=None, alpha=0.05):
         """
-        Parameters
-        ----------
-        anova : Anova object
-            Fitted ANOVA model
-        effect : str or list/tuple
-            "A", ["A","B"], "A:B", ["A","B","C"]
-        alpha : float
-            Significance level
+        Tukey Honest Significant Difference (design-aware)
         """
-        if anova.model is None:
-            raise RuntimeError("Run ANOVA before Tukey HSD")
 
         self.anova = anova
         self.alpha = alpha
+        self.effect = effect
 
-        # --------------------------------------------------
-        # Normalize effect
-        # --------------------------------------------------
-        if isinstance(effect, str):
-            if ":" in effect:
-                self.factors = effect.split(":")
+        # -------------------------------------------------
+        # AUTO-COMPUTE MEANS IF USER DIDN'T
+        # -------------------------------------------------
+        if not hasattr(anova, "means_table"):
+
+            if effect is None:
+                raise RuntimeError(
+                    "Effect must be provided when means are not precomputed"
+                )
+
+            if isinstance(effect, str):
+                factors = effect.split(":")
             else:
-                self.factors = [effect]
-        elif isinstance(effect, (list, tuple)):
-            self.factors = list(effect)
-        else:
-            raise ValueError("effect must be str or list/tuple")
+                factors = list(effect)
 
-        self.effect = ":".join(self.factors)
+            anova.factorial_means(factors)
 
-        # --------------------------------------------------
-        # AUTO-COMPUTE MEANS (KEY FIX)
-        # --------------------------------------------------
-        anova.factorial_means(self.factors)
+        # copy means
         self.means = anova.means_table.copy()
 
-        # --------------------------------------------------
-        # Select correct error term
-        # --------------------------------------------------
+        # -------------------------------------------------
+        # Detect grouping columns
+        # -------------------------------------------------
+        self.group_cols = [
+            c for c in self.means.columns
+            if c not in ("Mean", "Replications")
+        ]
+
+        # -------------------------------------------------
+        # Select correct error term (CRITICAL FIX)
+        # -------------------------------------------------
         self.error_df, self.error_ms = self._select_error_term()
 
     # ==================================================
     # Error-term selection (design-aware, safe fallback)
     # ==================================================
     def _select_error_term(self):
-        """
-        Select appropriate error DF and MS
-        """
-        # Default: residual
-        df = self.anova.error_df
-        ms = self.anova.error_ms
 
         if not hasattr(self.anova, "error_terms"):
-            return df, ms
+            return self.anova.error_df, self.anova.error_ms
 
         et = self.anova.error_terms
 
-        # Main effects
-        if len(self.factors) == 1:
-            if self.factors[0] == "A":
-                return et.get("whole_plot", (df, ms))
-            if self.factors[0] == "B":
-                return et.get("sub_plot", (df, ms))
-            return df, ms
+        if self.effect is None:
+            return et.get("residual", (self.anova.error_df, self.anova.error_ms))
 
-        # Interactions
-        if len(self.factors) >= 2:
-            return et.get("residual", (df, ms))
+        # main effects
+        if ":" not in self.effect:
+            if self.effect == "A":
+                return et.get("whole_plot", et["residual"])
+            if self.effect == "B":
+                return et.get("sub_plot", et["residual"])
+            return et["residual"]
 
-        return df, ms
+        # interactions
+        if self.effect.count(":") == 1:
+            if "B" in self.effect:
+                return et.get("sub_plot", et["residual"])
+            return et["residual"]
+
+        return et["residual"]
 
     # ==================================================
     # Tukey HSD test
@@ -109,20 +108,37 @@ class TukeyHSD:
     # ==================================================
     # Grouping logic
     # ==================================================
-    def _group_means(self, means):
+    def _group_means(self, means_df):
         """
-        Assign grouping letters using Tukey logic
+        Compact Letter Display (CLD) grouping using Tukey HSD comparisons
         """
-        groups = ["a"]
 
-        for i in range(1, len(means)):
-            letter = "a"
-            for j in range(i):
-                diff = abs(means.loc[j, "Mean"] - means.loc[i, "Mean"])
+        # create treatment labels (supports interactions automatically)
+        labels = means_df[self.group_cols].astype(str).agg(":".join, axis=1)
+
+        means_series = pd.Series(means_df["Mean"].values, index=labels)
+
+        treatments = list(means_series.index)
+        n = len(treatments)
+
+        # build significance matrix using Tukey HSD
+        sig_matrix = pd.DataFrame(False, index=treatments, columns=treatments)
+
+        for i in range(n):
+            for j in range(n):
+                if i == j:
+                    continue
+
+                diff = abs(means_series.iloc[i] - means_series.iloc[j])
+
                 if diff > self.hsd_value:
-                    letter = chr(ord(letter) + 1)
-            groups.append(letter)
+                    sig_matrix.iloc[i, j] = True
 
-        means["Group"] = groups
-        self.grouped_means = means
-        return means
+        # generate compact letter display
+        letters = compact_letter_display(means_series, sig_matrix)
+
+        means_df["Group"] = labels.map(letters)
+        self.grouped_means = means_df
+
+        return means_df
+

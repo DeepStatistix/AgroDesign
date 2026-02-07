@@ -70,14 +70,27 @@ def boxplot_letters(
     # -----------------------------
     aov.factorial_means(factors)
 
-    if method == "tukey":
-        sep = TukeyHSD(aov, effect=effect, alpha=alpha)
+    # -----------------------------
+    # Mean separation
+    # -----------------------------
+    if method.lower() == "tukey":
+        aov.factorial_means(factors)
+        sep = TukeyHSD(aov, effect=":".join(factors), alpha=alpha)
         means = sep.test()
-    elif method == "lsd":
-        sep = LSD(aov, effect=effect, alpha=alpha)
+
+    elif method.lower() == "lsd":
+        aov.factorial_means(factors)
+        sep = LSD(aov, alpha=alpha)
         means = sep.test()
+
+    elif method.lower() == "dmrt":
+        aov.factorial_means(factors)
+        sep = DMRT(aov, alpha=alpha)
+        means = sep.test()
+
     else:
-        raise ValueError("method must be 'tukey' or 'lsd'")
+        raise ValueError("method must be 'tukey', 'lsd', or 'dmrt'")
+
 
     # -----------------------------
     # Prepare boxplot data

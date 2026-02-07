@@ -211,7 +211,7 @@ All statistical components are validated using automated tests.
 
 If you use agrodesign in academic work, please cite:
 
-Agrodesign (v0.3.0): A Python package for agricultural design of experiments and ANOVA.
+Agrodesign (v0.5.0): A Python package for agricultural design of experiments and ANOVA.
 GitHub: https://github.com/DeepStatistix/AgroDesign
 
 (Planned: Zenodo DOI)

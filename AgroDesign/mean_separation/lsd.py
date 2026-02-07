@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from scipy.stats import t
-
+from agrodesign.utils.cld import compact_letter_display
 
 class LSD:
     """
@@ -95,24 +95,41 @@ class LSD:
     # ------------------------------------------------------------------
     def _group_means(self):
         """
-        Assign grouping letters using full pairwise LSD comparison
+        Compact Letter Display (CLD) grouping using LSD pairwise comparisons
         """
-        means = (
+
+        # sort by descending mean
+        means_df = (
             self.means
             .sort_values("Mean", ascending=False)
             .reset_index(drop=True)
         )
 
-        groups = ["a"]
+        # create treatment labels (supports interactions automatically)
+        labels = means_df[self.group_cols].astype(str).agg(":".join, axis=1)
 
-        for i in range(1, len(means)):
-            current_letter = "a"
-            for j in range(i):
-                diff = abs(means.loc[j, "Mean"] - means.loc[i, "Mean"])
+        means_series = pd.Series(means_df["Mean"].values, index=labels)
+
+        treatments = list(means_series.index)
+        n = len(treatments)
+
+        # build significance matrix
+        sig_matrix = pd.DataFrame(False, index=treatments, columns=treatments)
+
+        for i in range(n):
+            for j in range(n):
+                if i == j:
+                    continue
+
+                diff = abs(means_series.iloc[i] - means_series.iloc[j])
+
                 if diff > self.lsd_value:
-                    current_letter = chr(ord(current_letter) + 1)
-            groups.append(current_letter)
+                    sig_matrix.iloc[i, j] = True
 
-        means["Group"] = groups
-        self.grouped_means = means
-        return means
+        # generate compact letter display
+        letters = compact_letter_display(means_series, sig_matrix)
+
+        means_df["Group"] = labels.map(letters)
+        self.grouped_means = means_df
+
+        return means_df
