@@ -45,6 +45,21 @@ class Anova:
         self.anova_table = sm.stats.anova_lm(self.model, typ=2)
 
         return self._format_anova()
+    def _safe_columns(self, cols):
+        """
+        Replace unsafe column names for patsy formulas
+        Example: C -> F_C
+        """
+        mapping = {}
+        safe_data = self.data.copy()
+
+        for c in cols:
+            safe = f"F_{c}"
+            mapping[c] = safe
+            safe_data = safe_data.rename(columns={c: safe})
+
+        return safe_data, mapping
+
     def means(self, treatment):
         """
         Compute treatment means and number of replications
@@ -64,38 +79,37 @@ class Anova:
 
         self.means_table = means_df
         return means_df
+    
     def factorial(self, factors, block=None):
-        """
-        General factorial ANOVA (CRD or RCBD)
-
-        Parameters
-        ----------
-        factors : list or tuple of str
-            Factor names, e.g. ["A", "B"] or ["A", "B", "C"]
-        block : str, optional
-            Block factor for RCBD
-        """
         if not isinstance(factors, (list, tuple)) or len(factors) < 1:
-            raise ValueError("factors must be a list or tuple of factor names")
+            raise ValueError("factors must be a list or tuple")
 
-        # Validate columns
-        for f in factors:
-            if f not in self.data.columns:
-                raise ValueError(f"Factor '{f}' not found in data")
+        # ---------- SAFE COLUMN HANDLING ----------
+        cols = list(factors)
+        if block:
+            cols.append(block)
 
-        if block and block not in self.data.columns:
-            raise ValueError(f"Block '{block}' not found in data")
+        safe_data, mapping = self._safe_columns(cols)
 
-        # Build factorial term: C(A) * C(B) * C(C)
-        factorial_term = " * ".join([f"C({f})" for f in factors])
+        # build formula using SAFE names
+        safe_factors = [mapping[f] for f in factors]
+        factorial_term = " * ".join([f"C({f})" for f in safe_factors])
 
         if block:
-            formula = f"{self.response} ~ {factorial_term} + C({block})"
+            formula = f"{self.response} ~ {factorial_term} + C({mapping[block]})"
         else:
             formula = f"{self.response} ~ {factorial_term}"
 
-        self.model = ols(formula, data=self.data).fit()
+        # fit
+        self.model = ols(formula, data=safe_data).fit()
         self.anova_table = sm.stats.anova_lm(self.model, typ=2)
+
+        # ---------- RESTORE ORIGINAL NAMES ----------
+        self.anova_table.index = [
+            str(i)
+            .replace("F_", "")
+            for i in self.anova_table.index
+        ]
 
         return self._format_anova()
 

@@ -61,6 +61,9 @@ class DMRT:
 
         return et["residual"]
 
+    def critical_value(self):
+        return max(self.lsr.values())
+
     # --------------------------------------------------
     # Test
     # --------------------------------------------------

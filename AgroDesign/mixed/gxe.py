@@ -1,135 +1,154 @@
 import pandas as pd
 import numpy as np
+import statsmodels.api as sm
 import statsmodels.formula.api as smf
+from statsmodels.formula.api import ols
 
 
 class GxEModel:
     """
-    Genotype × Environment mixed model (MET analysis)
+    Multi-Environment Trial (Genotype × Environment)
+    Linear Mixed Model
 
     Model:
-    Y = μ + Environment(fixed) + Genotype(random) +
-        Genotype×Environment(random) + Block(Environment) + error
+        Y = μ + E (fixed) + G (random) + GE (random) + Block(E) (random) + e
     """
 
-    def __init__(self, data, response):
+    # --------------------------------------------------
+    # INIT
+    # --------------------------------------------------
+    def __init__(self, data, response, genotype, environment, block=None):
+
         self.data = data.copy()
+
+        if response not in data.columns:
+            raise ValueError(f"{response} column not found")
+
         self.response = response
-        self.result = None
-
-    # --------------------------------------------------
-    # Fit model
-    # --------------------------------------------------
-    def fit(self, genotype, environment, block):
-
-        df = self.data.copy()
-
-        # nested block within environment
-        df["_env_block"] = df[environment].astype(str) + ":" + df[block].astype(str)
-
-        formula = f"{self.response} ~ C({environment})"
-
-        vc = {
-            "Genotype": f"0 + C({genotype})",
-            "GxE": f"0 + C({genotype}):C({environment})"
-        }
-
-        self.model = smf.mixedlm(
-            formula=formula,
-            data=df,
-            groups=df["_env_block"],
-            vc_formula=vc,
-            re_formula="1"
-        )
-
-        self.result = self.model.fit(reml=True)
-
         self.genotype = genotype
         self.environment = environment
         self.block = block
 
-        return self.result
+        self.result = None
+        self.model = None
 
     # --------------------------------------------------
-    # Variance components
+    # Classical ANOVA (for report)
+    # --------------------------------------------------
+    def anova(self):
+
+        formula = (
+            f'{self.response} ~ '
+            f'C({self.genotype}) + '
+            f'C({self.environment}) + '
+            f'C({self.genotype}):C({self.environment})'
+        )
+
+        model = ols(formula, data=self.data).fit()
+        table = sm.stats.anova_lm(model, typ=2)
+
+        return table
+
+    # --------------------------------------------------
+    # Mixed Model Fit
+    # --------------------------------------------------
+    def fit(self):
+        """
+        BLUP model:
+        Environment = fixed
+        Genotype = random
+        """
+
+        import statsmodels.formula.api as smf
+
+        formula = f"{self.response} ~ C({self.environment})"
+
+        self.model = smf.mixedlm(
+            formula=formula,
+            data=self.data,
+            groups=self.data[self.genotype]
+        )
+
+        self.result = self.model.fit(reml=True)
+        return self.result
+
+
+    # --------------------------------------------------
+    # Variance Components
     # --------------------------------------------------
     def var_components(self):
 
-        # 1️⃣ Residual
-        residual = float(self.result.scale)
-
-        # 2️⃣ Block(Environment) variance (group random effect)
-        if self.result.cov_re is not None:
-            block_var = float(self.result.cov_re.iloc[0, 0])
-        else:
-            block_var = 0.0
-
-        # 3️⃣ Additional variance components (Genotype & G×E)
-        vc_dict = {}
-
-        try:
-            names = self.model.exog_vc.names
-            values = self.result.vcomp
-            vc_dict = dict(zip(names, values))
-        except Exception:
-            # fallback for older statsmodels
-            if hasattr(self.result, "vcomp"):
-                for i, v in enumerate(self.result.vcomp):
-                    vc_dict[f"VC{i+1}"] = float(v)
+        sigma_g = float(self.result.cov_re.iloc[0,0])
+        sigma_e = float(self.result.scale)
 
         return {
-            "Block(Environment)": block_var,
-            "Genotype": vc_dict.get("Genotype", 0.0),
-            "GxE": vc_dict.get("GxE", 0.0),
-            "Residual": residual
+            "Genotype": sigma_g,
+            "Residual": sigma_e
         }
 
+
     # --------------------------------------------------
-    # BLUPs
+    # BLUPs (Genotype performance)
     # --------------------------------------------------
-    def blup_genotypes(self):
+    def blup(self):
+        """
+        Extract genotype BLUPs (robust to statsmodels versions)
+        """
 
         re = self.result.random_effects
 
         rows = []
-        for k, v in re.items():
-            rows.append([k, list(v.values())[0]])
 
-        return pd.DataFrame(rows, columns=["EnvBlock", "BLUP"])
+        for level, values in re.items():
+
+            # statsmodels <0.14 → dict
+            if isinstance(values, dict):
+                val = float(list(values.values())[0])
+
+            # statsmodels ≥0.14 → ndarray / Series
+            else:
+                val = float(values[0])
+
+            rows.append([level, val])
+
+        df = pd.DataFrame(rows, columns=["Genotype", "BLUP"])
+        return df.sort_values("BLUP", ascending=False).reset_index(drop=True)
+
 
     # --------------------------------------------------
-    # Broad sense heritability across environments
+    # Broad Sense Heritability
     # --------------------------------------------------
     def heritability(self):
 
         vc = self.var_components()
 
         sigma_g = vc["Genotype"]
-        sigma_ge = vc["GxE"]
         sigma_e = vc["Residual"]
 
-        e = self.data[self.environment].nunique()
-        r = self.data[self.block].nunique()
+        r = self.data.groupby(
+            [self.genotype, self.environment]
+        ).size().mean()
 
-        H2 = sigma_g / (sigma_g + sigma_ge/e + sigma_e/(e*r))
+        H2 = sigma_g / (sigma_g + sigma_e / r)
         return H2
 
+
     # --------------------------------------------------
-    # Stability index
+    # Stability (GE variance)
     # --------------------------------------------------
     def stability(self):
-
-        vc = self.var_components()
-        return vc["GxE"]
+        return self.var_components()["GxE"]
 
     # --------------------------------------------------
-    # Summary table
+    # Summary
     # --------------------------------------------------
     def summary(self):
 
         vc = self.var_components()
 
-        return pd.DataFrame({
-            "Component": vc.keys(),
-            "Variance": vc.values()
+        table = pd.DataFrame({
+            "Variance Component": vc.keys(),
+            "Value": vc.values()
         })
+
+        return table

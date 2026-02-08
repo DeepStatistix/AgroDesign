@@ -89,6 +89,9 @@ class LSD:
         self.lsd_value = t_crit * np.sqrt(2 * self.error_ms / r)
 
         return self._group_means()
+    
+    def critical_value(self):
+        return self.lsd_value
 
     # ------------------------------------------------------------------
     # Grouping letters

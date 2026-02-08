@@ -13,7 +13,8 @@ def report_plot(
     alpha=0.05,
     figsize=(10, 8),
     save=None,
-    dpi=300
+    dpi=300,
+    show=True
 ):
     """
     Full experiment visual report
@@ -103,8 +104,13 @@ def report_plot(
 
     plt.tight_layout()
 
-    # optional export
+    # save if requested
     if save is not None:
         plt.savefig(save, dpi=dpi, bbox_inches="tight")
 
-    plt.show()
+    # ONLY show if interactive mode requested
+    if show:
+        plt.show()
+    else:
+        plt.close()
+

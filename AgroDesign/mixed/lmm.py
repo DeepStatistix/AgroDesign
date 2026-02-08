@@ -144,24 +144,44 @@ class MixedModel:
     # ------------------------------------------------------------
     def blup(self, effect):
         """
-        Extract BLUPs for a random factor
+        Return BLUPs for random effect
+
+        effect can be:
+            "Block"
+            ["Block"]
         """
 
-        if self.result is None:
-            raise RuntimeError("Model not fitted")
+        # -------------------------------
+        # Normalize input
+        # -------------------------------
+        if isinstance(effect, (list, tuple)):
+            effect = effect[0]
 
-        effect_col = self._interaction_column(effect)
+        if not hasattr(self, "result"):
+            raise RuntimeError("Fit model first")
 
         re = self.result.random_effects
 
         values = []
         for level, val in re.items():
-            values.append([level, float(val)])
+
+            # val may be array / series
+            if hasattr(val, "values"):
+                v = float(val.values[0])
+            elif isinstance(val, (list, tuple, np.ndarray)):
+                v = float(val[0])
+            else:
+                v = float(val)
+
+            values.append([level, v])
 
         df = pd.DataFrame(values, columns=[effect, "BLUP"])
+
+        # Sorting safe now
         df = df.sort_values("BLUP", ascending=False).reset_index(drop=True)
 
         return df
+
 
     # ------------------------------------------------------------
     # Heritability

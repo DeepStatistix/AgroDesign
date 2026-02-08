@@ -66,7 +66,7 @@ def test_crd_full_pipeline():
 
     mean_plot(aov=aov, factor="Treatment", show=False)
     boxplot_letters(aov, "Treatment", show=False)
-    report_plot(aov, "Treatment")
+    report_plot(aov, "Treatment", show=False)
 
 
 # =========================================================
@@ -103,7 +103,7 @@ def test_factorial_full_pipeline():
     DMRT(aov).test()
 
     interaction_plot(aov, ["A","B"], show=False)
-    report_plot(aov, ["A","B"])
+    report_plot(aov, ["A","B"], show=False)
 
 
 # =========================================================

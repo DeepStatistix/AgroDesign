@@ -52,6 +52,9 @@ class TukeyHSD:
         # -------------------------------------------------
         self.error_df, self.error_ms = self._select_error_term()
 
+    def critical_value(self):
+        return self.hsd_value
+
     # ==================================================
     # Error-term selection (design-aware, safe fallback)
     # ==================================================
