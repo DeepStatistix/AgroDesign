@@ -12,7 +12,9 @@ Experiment(df,"Yield").gxe("Genotype","Environment","Rep").analyze()
 """
 
 import pandas as pd
+import matplotlib.pyplot as plt
 from itertools import combinations
+from scipy.stats import shapiro
 # core engines
 from agrodesign.analysis.anova import Anova
 from agrodesign.analysis.assumptions import Assumptions
@@ -33,6 +35,7 @@ from agrodesign.mixed.lmm import MixedModel
 from agrodesign.mixed.gxe import GxEModel
 from agrodesign.mixed.ammi import AMMI
 from agrodesign.mixed.stability_report import StabilityReport
+from agrodesign.core.result import AgroResult
 
 
 class Experiment:
@@ -54,6 +57,11 @@ class Experiment:
 
         self.mode = None
         self.params = {}
+        self.verbose = False
+
+    def _print(self, *args, **kwargs):
+        if self.verbose:
+            print(*args, **kwargs)
 
 
     def _generate_effect_list(self, factors):
@@ -124,31 +132,28 @@ class Experiment:
     # MAIN EXECUTION ENGINE
     # =================================================
 
-    def run(self, posthoc="tukey", alpha=0.05, plots=True, export=None):
+    def run(self, posthoc="tukey", alpha=0.05, plots=True):
         """
         Run complete agronomic analysis pipeline
 
         Parameters
         ----------
         posthoc : "lsd" | "tukey" | "dmrt"
-        export : str or None
-            "report.png", "report.pdf", or folder path
+        plots : bool
+            Whether to generate plots
         """
-
 
         if self.mode is None:
             raise RuntimeError("No design specified")
 
-        print("\n================ AGRODESIGN ANALYSIS ================")
-
         if self.mode in ["crd", "rcbd", "factorial", "split"]:
-            return self._run_doe(posthoc, alpha, plots, export)
+            return self._run_doe(posthoc, alpha, plots)
 
         elif self.mode == "gxe":
-            return self._run_gxe(export)
+            return self._run_gxe()
 
         elif self.mode == "mixed":
-            return self._run_mixed(export)
+            return self._run_mixed()
 
 
 
@@ -202,14 +207,16 @@ class Experiment:
     # DOE PIPELINE
     # =================================================
 
-    def _run_doe(self, posthoc, alpha, plots, export=None):
+    def _run_doe(self, posthoc, alpha, plots):
 
-        print("\n======================================================")
-        print(self._design_title())
-        print("Response variable:", self.response)
-        print("======================================================")
+        if self.mode == "factorial":
+            design_name = "Factorial Experiment"
+        else:
+            design_name = self.mode.upper()
 
+        result = AgroResult(design_name, self.response)
         aov = Anova(self.data, self.response)
+        result.aov = aov  # Store for plotting
 
         # ---------- FIT MODEL ----------
         if self.mode == "crd":
@@ -228,29 +235,9 @@ class Experiment:
             table = aov.split_plot(**self.params)
             factors = [self.params["whole_plot"], self.params["sub_plot"]]
 
-        # ---------- PRINT ANOVA ----------
-        print("\nANOVA TABLE")
-        print(table)
-    
-        # ---------- FIND HIGHEST EFFECT ----------
-        highest = self._find_highest_significant_effect(table, alpha)
-        print("\nHighest significant effect:", highest)
-
-
-        # =====================================================
-        # SIMPLE EFFECT ANALYSIS (if interaction significant)
-        # =====================================================
-        if highest and highest.count(":") >= 1:
-
-            from agrodesign.interpretation.simple_effects import simple_effects
-
-            factors_high = highest.replace("C(","").replace(")","").split(":")
-
-            simple_effects(aov, factors_high, posthoc, alpha)
+        result.anova = table.copy()
 
         # ---------- MEANS + POSTHOC ----------
-        print("\n========== MEAN COMPARISON ==========")
-
         collected_means = {}
         effects = self._generate_effect_list(factors)
 
@@ -258,14 +245,10 @@ class Experiment:
 
             if isinstance(eff, list):
                 effect_name = ":".join(eff)
-                title = " × ".join(eff)
                 factor_for_plot = eff
             else:
                 effect_name = eff
-                title = eff
                 factor_for_plot = eff
-
-            print(f"\nEffect: {title}")
 
             aov.factorial_means(eff)
 
@@ -277,42 +260,49 @@ class Experiment:
                 sep = DMRT(aov, alpha=alpha)
 
             means = sep.test()
-            collected_means[effect_name] = means.copy()
+            result.means[effect_name] = means.copy()
+            result.posthoc[effect_name] = posthoc
 
-            print(means.round(4))
-            # ---- print critical value ----
-            if hasattr(sep, "lsd_value"):
-                print(f"LSD({alpha}) = {sep.lsd_value:.4f}")
-            elif hasattr(sep, "hsd_value"):
-                print(f"HSD({alpha}) = {sep.hsd_value:.4f}")
-            elif hasattr(sep, "lsr"):
-                print(f"DMRT({alpha}) critical ranges computed")
+            # Store HSD value if available
+            if hasattr(sep, 'hsd_value'):
+                result.hsd[effect_name] = sep.hsd_value
+
+            collected_means[effect_name] = means.copy()
 
             if plots:
                 if isinstance(eff, list) and len(eff) == 2:
-                    interaction_plot(aov, eff, method=posthoc)
+                    fig = interaction_plot(aov, eff, method=posthoc, show=False)
+                    result.figures.append(fig)
+                    plt.close(fig)
                 else:
-                    mean_plot(aov=aov, factor=factor_for_plot, method=posthoc)
+                    fig = mean_plot(aov=aov, factor=factor_for_plot, method=posthoc, show=False)
+                    result.figures.append(fig)
+                    plt.close(fig)
 
         # ---------- RECOMMENDATION ----------
         from agrodesign.interpretation.hierarchy import (
             highest_significant_effect,
             filter_effects_by_hierarchy
         )
-        from agrodesign.interpretation.recommendation import generate_recommendation
 
-        print("\n========== FINAL RECOMMENDATION ==========")
+        from agrodesign.interpretation.recommendation import generate_recommendation
 
         highest = highest_significant_effect(aov.anova_table, alpha)
         interpretable_means = filter_effects_by_hierarchy(collected_means, highest)
 
+        # For factorial recommendation, use full means to get best combination
+        if self.mode == "factorial":
+            full_means = collected_means
+        else:
+            full_means = interpretable_means
+
         recommendation = generate_recommendation(
             aov.anova_table,
-            interpretable_means,
+            full_means,
             self.mode.upper()
         )
 
-        print(recommendation)
+        result.recommendation = recommendation
 
         # ---------- SIMPLE EFFECTS ----------
         if highest and highest.count(":") >= 2:
@@ -321,26 +311,43 @@ class Experiment:
 
             factors_high = highest.replace("C(","").replace(")","").split(":")
 
-            print("\n========== SIMPLE EFFECT ANALYSIS ==========")
             simple_effects(aov, factors_high, posthoc, alpha)
 
-            print("\n========== CONDITIONAL INTERACTION PLOTS ==========")
-            simple_effect_plot(aov, highest, posthoc, alpha)
+            if plots:
+                figs = simple_effect_plot(aov, highest, posthoc, alpha, show=False)
+                result.figures.extend(figs)
 
         # ---------- ASSUMPTIONS ----------
-        print("\n========== ASSUMPTIONS ==========")
         assump = Assumptions(aov)
-        print("Shapiro p-value:", assump.shapiro_test())
+        pvalue = assump.shapiro_test()
+        result.assumptions["normality_p"] = pvalue["p-value"]
+
+        # Add homogeneity tests for factorial designs
+        if self.mode == "factorial":
+            homogeneity_results = []
+            for factor in factors:
+                levene_result = assump.levene_test(factor)
+                homogeneity_results.append({
+                    "factor": factor,
+                    "test": "Levene",
+                    "statistic": levene_result["Statistic"],
+                    "p-value": levene_result["p-value"],
+                    "homogeneous": levene_result["Homogeneous"]
+                })
+            result.assumptions["homogeneity"] = homogeneity_results
 
         # ---------- REPORT ----------
         if plots:
-            report_plot(
+            fig = report_plot(
                 aov,
                 factors[:2] if len(factors) >= 2 else factors[0],
-                save=export
+                show=False
             )
+            result.figures.append(fig)
+            plt.close(fig)
 
-        return None
+        return result
+
 
     def interpret_anova(table):
 
@@ -369,121 +376,30 @@ class Experiment:
             return "interaction_dominates", interactions
 
         return "main_effects", effects
-
-        # =====================================================
-        # AUTOMATIC EFFECT ANALYSIS (ALL ORDERS)
-        # =====================================================
-        print("\n========== MEAN COMPARISON ==========")
-
-        effects = self._generate_effect_list(factors)
-
-        for eff in effects:
-
-            # normalize name
-            if isinstance(eff, list):
-                effect_name = ":".join(eff)
-                title = " × ".join(eff)
-                factor_for_plot = eff
-            else:
-                effect_name = eff
-                title = eff
-                factor_for_plot = eff
-
-            print(f"\nEffect: {title}")
-
-            # ---- compute means ----
-            aov.factorial_means(eff)
-
-            # ---- run posthoc ----
-            if posthoc == "lsd":
-                sep = LSD(aov, effect=effect_name, alpha=alpha)
-                label = "LSD"
-
-            elif posthoc == "tukey":
-                sep = TukeyHSD(aov, effect=effect_name, alpha=alpha)
-                label = "HSD"
-
-            elif posthoc == "dmrt":
-                sep = DMRT(aov, alpha=alpha)
-                label = "DMRT"
-
-            else:
-                raise ValueError("posthoc must be lsd/tukey/dmrt")
-
-            means = sep.test()
-
-            # ---- print critical value ----
-            if hasattr(sep, "lsd_value"):
-                print(f"LSD({alpha}) = {sep.lsd_value:.4f}")
-            elif hasattr(sep, "hsd_value"):
-                print(f"HSD({alpha}) = {sep.hsd_value:.4f}")
-            elif hasattr(sep, "lsr"):
-                print(f"DMRT({alpha}) critical ranges computed")
-
-            print(means.round(4))
-            self._recommendation(means, title)
-
-            # ---- plots ----
-            if plots:
-                if isinstance(eff, list) and len(eff) == 2:
-                    interaction_plot(aov, eff, method=posthoc)
-                else:
-                    mean_plot(aov=aov, factor=factor_for_plot, method=posthoc)
-
-        # =====================================================
-        # ASSUMPTIONS
-        # =====================================================
-        print("\n========== ASSUMPTIONS ==========")
-        assump = Assumptions(aov)
-        print("Shapiro p-value:", assump.shapiro_test())
-
-        # =====================================================
-        # FINAL REPORT
-        # =====================================================
-        print("\n========== SUMMARY REPORT ==========")
-        savepath = None
-        if export:
-            if export.endswith(".png") or export.endswith(".pdf"):
-                savepath = export
-            else:
-                savepath = export + "/agrodesign_report.png"
-
-        report_plot(
-            aov,
-            factors[:2] if len(factors) >= 2 else factors[0],
-            save=savepath
-        )
-
-        if savepath:
-            print(f"\nReport exported to: {savepath}")
-
-        return None
-
     # =================================================
     # MIXED MODEL PIPELINE
     # =================================================
 
 
-    def _run_mixed(self, export=None):
-
-        print("\nMIXED MODEL ANALYSIS")
+    def _run_mixed(self):
 
         model = MixedModel(self.data, self.response)
         model.fit(self.params["fixed"], self.params["random"])
 
         summary = model.summary()
         blup = model.blup(self.params["random"])
+        result = AgroResult("MIXED MODEL", self.response)
+        result.variance_components = summary
+        result.blups = blup
 
-        print("\nVariance Components")
-        print(summary)
+        interpretation = interpret_mixed(summary, blup)
+        result.recommendation = interpretation
 
-        print("\nBLUPs")
-        print(blup)
+        # ---------- ASSUMPTIONS ----------
+        stat, p = shapiro(model.result.resid)
+        result.assumptions["normality_p"] = p
 
-        print("\nINTERPRETATION")
-        print(interpret_mixed(summary, blup))
-
-        return model
+        return result
 
 
     # =================================================
@@ -492,7 +408,7 @@ class Experiment:
 
     def _run_gxe(self, export=None):
 
-        print("\nG×E ANALYSIS")
+        self._print("\nG×E ANALYSIS")
 
         gxe = GxEModel(
             self.data,
@@ -507,35 +423,31 @@ class Experiment:
         vc = gxe.summary()
         h2 = gxe.heritability()
         blup = gxe.blup()
+        result = AgroResult("GxE", self.response)
+        result.model = gxe  # Store for plotting
 
-        print("\nANOVA")
-        print(anova)
+        result.anova = anova
+        result.variance_components = vc
+        result.heritability = h2
+        result.blups = blup
+        result.recommendation = interpret_gxe(anova, vc, h2, blup)
 
-        print("\nVariance Components")
-        print(vc)
+        # ---------- ASSUMPTIONS ----------
+        stat, p = shapiro(gxe.result.resid)
+        result.assumptions["normality_p"] = p
 
-        print("\nHeritability:", h2)
+        self._print("\nANOVA")
+        self._print(anova)
 
-        print("\nGenotype BLUPs")
-        print(blup)
+        self._print("\nVariance Components")
+        self._print(vc)
 
-        print("\nINTERPRETATION")
-        print(interpret_gxe(anova, vc, h2, blup))
+        self._print("\nHeritability:", h2)
 
+        self._print("\nGenotype BLUPs")
+        self._print(blup)
 
-    def _recommendation(self, sep_table, factor):
+        self._print("\nINTERPRETATION")
+        self._print(interpret_gxe(anova, vc, h2, blup))
 
-        # highest mean treatment
-        best = sep_table.iloc[0]
-
-        level_cols = [c for c in sep_table.columns if c not in ["Mean","Replications","Group"]]
-        treatment_name = " × ".join(str(best[c]) for c in level_cols)
-
-        rec = (
-            f"\nFINAL RECOMMENDATION:\n"
-            f"{factor}: {treatment_name} produced the highest mean "
-            f"({best['Mean']:.3f}) and belongs to the superior statistical group '{best['Group']}'."
-        )
-
-        print(rec)
-        return rec
+        return result

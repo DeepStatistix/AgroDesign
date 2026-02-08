@@ -1,21 +1,22 @@
 from .anova import interpret_anova
 from .means import interpret_means
+from .hierarchy import highest_significant_effect, filter_effects_by_hierarchy
 
 
 def generate_recommendation(anova_table, means_tables, design_name):
     """
     Create agronomic recommendation based on ANOVA + mean separation
-    Works for main effects AND interactions of any order
+    Follows hierarchical ANOVA interpretation: recommend combinations only if interaction is significant.
     """
-    highest_effect = None
+    highest_effect = highest_significant_effect(anova_table)
+    report = []
+    report.append(f"{design_name} INTERPRETATION\n")
+
     if highest_effect:
         report.append(
             f"Interpretation restricted to {highest_effect.replace(':',' × ')} "
-            f"due to significant higher-order interaction."
+            f"due to significant effect."
         )
-
-    report = []
-    report.append(f"{design_name} INTERPRETATION\n")
 
     # ------------------------------------------------------
     # 1️⃣ Interpret ANOVA significance
@@ -35,58 +36,66 @@ def generate_recommendation(anova_table, means_tables, design_name):
                 sig_terms.append(str(idx))
 
         if sig_terms:
+            # Extract factors from contrasts like C(A) -> A
+            sig_factors = [s.replace('C(', '').replace(')', '') for s in sig_terms if 'C(' in s]
+            if not sig_factors:
+                sig_factors = sig_terms
             report.append(
-                "Significant effects detected in: "
-                + ", ".join(sig_terms)
+                "Significant factors : "
+                + ", ".join(sig_factors)
                 + "."
             )
         else:
             report.append("No significant treatment effects detected.")
 
     # ------------------------------------------------------
-    # 2️⃣ Interpret mean separation
+    # 2️⃣ Best combination and recommendation
     # ------------------------------------------------------
-    for effect, means in means_tables.items():
+    # Filter means tables by hierarchy
+    filtered_means = filter_effects_by_hierarchy(means_tables, highest_effect)
 
-        best = means.iloc[0]
+    if highest_effect and ":" in highest_effect:
+        # Recommend best combination from the highest order interaction
+        interaction_key = highest_effect
+        if interaction_key in filtered_means:
+            best_means = filtered_means[interaction_key]
+            best = best_means.iloc[0]
 
-        # detect factor columns automatically
-        factor_cols = [
-            c for c in means.columns
-            if c not in ["Mean", "Replications", "Group"]
-        ]
+            factor_cols = [
+                c for c in best_means.columns
+                if c not in ["Mean", "Replications", "Group"]
+            ]
 
-        # Build treatment combination name
-        if len(factor_cols) == 1:
-            level_name = str(best[factor_cols[0]])
-        else:
-            level_name = " × ".join(str(best[c]) for c in factor_cols)
+            final_level = " × ".join(str(best[c]) for c in factor_cols)
 
-        report.append(
-            f"For {effect.replace(':',' × ')}, "
-            f"'{level_name}' produced the highest yield "
-            f"({best['Mean']:.3f}) and belongs to the superior group "
-            f"'{best['Group']}'."
-        )
+            report.append(f"Best combination    : {final_level}")
+            report.append(f"Expected mean       : {best['Mean']:.2f}")
+            report.append(f"Recommendation      : Adopt {final_level}")
+    else:
+        # No interaction significant: recommend best levels independently
+        report.append("No interaction detected. Factors act independently.")
+        report.append("Best levels:")
 
-    # ------------------------------------------------------
-    # 3️⃣ Final agronomic recommendation
-    # ------------------------------------------------------
-    last_effect = list(means_tables.keys())[-1]
-    last_means = means_tables[last_effect]
-    best = last_means.iloc[0]
+        # Find best level for each main effect
+        main_effects = {k: v for k, v in filtered_means.items() if ":" not in k}
+        best_levels = []
+        for effect, means_df in main_effects.items():
+            if hasattr(means_df, 'columns'):  # DataFrame
+                best_row = means_df.iloc[0]
+                factor_cols = [c for c in means_df.columns if c not in ["Mean", "Replications", "Group"]]
+                if factor_cols:
+                    level = str(best_row[factor_cols[0]])
+                    best_levels.append(level)
+            else:  # Series
+                factor_cols = [idx for idx in means_df.index if idx not in ["Mean", "Replications", "Group"]]
+                if factor_cols:
+                    level = str(means_df[factor_cols[0]])
+                    best_levels.append(level)
 
-    factor_cols = [
-        c for c in last_means.columns
-        if c not in ["Mean", "Replications", "Group"]
-    ]
+        if best_levels:
+            report.append(", ".join(best_levels) + ".")
 
-    final_level = " × ".join(str(best[c]) for c in factor_cols)
-
-    report.append(
-        "\nFINAL RECOMMENDATION:\n"
-        f"Adopt treatment combination {final_level} "
-        f"for maximizing {best['Mean']:.3f} yield under this experiment."
-    )
+        # Do NOT compute or print expected combination mean
+        report.append("No specific treatment combination is statistically superior.")
 
     return "\n".join(report)

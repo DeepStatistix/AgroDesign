@@ -4,7 +4,7 @@ from agrodesign.analysis.anova import Anova
 from agrodesign.plots.interaction_plot import interaction_plot
 
 
-def simple_effect_plot(aov, highest_effect, method="tukey", alpha=0.05):
+def simple_effect_plot(aov, highest_effect, method="tukey", alpha=0.05, show=True):
     """
     Automatically plots conditional interaction plots
     when higher-order interaction is significant.
@@ -19,13 +19,15 @@ def simple_effect_plot(aov, highest_effect, method="tukey", alpha=0.05):
     conditioning = factors[2:]
 
     if len(conditioning) == 0:
-        return
+        return []
 
     data = aov.data
 
     cond_levels = [
         sorted(data[c].unique()) for c in conditioning
     ]
+
+    figs = []
 
     for combo in product(*cond_levels):
 
@@ -42,13 +44,14 @@ def simple_effect_plot(aov, highest_effect, method="tukey", alpha=0.05):
         sub_aov = Anova(subset, aov.response)
         sub_aov.factorial(target_pair)
 
-        plt.figure(figsize=(6,4))
-
-        interaction_plot(
+        fig = interaction_plot(
             sub_aov,
             target_pair,
             method=method,
             alpha=alpha,
             title=f"{target_pair[0]} × {target_pair[1]} at " + ", ".join(title_parts),
-            show=True
+            show=show
         )
+        figs.append(fig)
+
+    return figs

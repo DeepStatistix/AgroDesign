@@ -131,5 +131,6 @@ def interaction_plot(
         plt.tight_layout()
         if show:
             plt.show()
+        # Do not close the figure when show=False to allow later display
 
-    return ax
+    return ax.figure if standalone else ax

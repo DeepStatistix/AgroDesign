@@ -143,5 +143,6 @@ def mean_plot(
         plt.tight_layout()
         if show:
             plt.show()
+            plt.close()  # Close after showing to free memory
 
-    return ax
+    return ax.figure if standalone else ax

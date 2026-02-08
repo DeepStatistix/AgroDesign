@@ -19,7 +19,7 @@ def effect_plot(aov, effect, method="tukey", alpha=0.05,
         if len(effect) != 2:
             raise ValueError("Currently interaction plot supports 2 factors only")
 
-        return interaction_plot(
+        fig = interaction_plot(
             aov,
             effect,
             method=method,
@@ -29,6 +29,7 @@ def effect_plot(aov, effect, method="tukey", alpha=0.05,
             ax=ax,
             show=show
         )
+        return fig
 
     # -------------------------
     # Main effect case
@@ -50,10 +51,11 @@ def effect_plot(aov, effect, method="tukey", alpha=0.05,
     else:
         raise ValueError("method must be 'lsd', 'tukey', or 'dmrt'")
 
-    return mean_plot(
+    fig = mean_plot(
         means,
         ylabel=ylabel,
         title=title,
         ax=ax,
         show=show
     )
+    return fig

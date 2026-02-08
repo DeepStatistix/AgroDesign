@@ -171,5 +171,6 @@ def boxplot_letters(
     plt.tight_layout()
     if show:
         plt.show()
-    else:
-        plt.close()
+        plt.close()  # Close after showing to free memory
+
+    return plt.gcf()
