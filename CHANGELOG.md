@@ -1,6 +1,6 @@
 # Changelog
 
-## Agrodesign (v0.5.0) — Stable statistical core
+## Agrodesign (v0.6.0) — Stable statistical core
 - CRD, RCBD, factorial, split-plot, split–split ANOVA
 - Design-aware LSD and Tukey HSD
 - Automatic error-term selection

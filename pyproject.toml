@@ -1,23 +1,50 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "agrodesign"
-version = "0.4.0"
-description = "Design of Experiments and statistical analysis for agricultural research"
+version = "0.6.0"
+description = "Automatic statistical and agronomic interpretation of agricultural experiments"
+readme = "README.md"
+requires-python = ">=3.9"
+
 authors = [
-    { name = "Aqib Gul", email = "maaqib90@gmail.com" }
+    {name = "Akib Mir"}
 ]
-requires-python = ">=3.12"
+
+license = {file = "LICENSE"}
 
 dependencies = [
-    "numpy",
-    "pandas",
-    "scipy",
-    "statsmodels",
-    "matplotlib"
+    "pandas>=1.5",
+    "numpy>=1.21",
+    "scipy>=1.9",
+    "statsmodels>=0.14",
+    "matplotlib>=3.7",
+    "seaborn"
+]
+
+keywords = [
+    "agriculture",
+    "anova",
+    "crd",
+    "rcbd",
+    "split-plot",
+    "factorial",
+    "design of experiments",
+    "ammi",
+    "gge",
+    "stability analysis",
+    "plant breeding"
+]
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "License :: OSI Approved :: MIT License"
 ]
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
