@@ -3,6 +3,7 @@ import numpy as np
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from statsmodels.formula.api import ols
+from agrodesign.mixed.ammi import AMMI
 
 
 class GxEModel:
@@ -47,7 +48,17 @@ class GxEModel:
         model = ols(formula, data=self.data).fit()
         table = sm.stats.anova_lm(model, typ=2)
 
-        return table
+        # Format the table to match the expected structure
+        table = table.rename(columns={
+            "sum_sq": "SS",
+            "df": "DF",
+            "F": "F",
+            "PR(>F)": "p-value"
+        })
+
+        table["MS"] = table["SS"] / table["DF"]
+
+        return table[["DF", "SS", "MS", "F", "p-value"]]
 
     # --------------------------------------------------
     # Mixed Model Fit
@@ -70,6 +81,11 @@ class GxEModel:
         )
 
         self.result = self.model.fit(reml=True)
+
+        # Fit AMMI for stability
+        self.ammi = AMMI(self.data, self.genotype, self.environment, self.response)
+        self.ammi.fit()
+
         return self.result
 
 
@@ -134,10 +150,33 @@ class GxEModel:
 
 
     # --------------------------------------------------
-    # Stability (GE variance)
+    # Stability (AMMI ASV)
     # --------------------------------------------------
     def stability(self):
-        return self.var_components()["GxE"]
+        if self.ammi is None:
+            raise RuntimeError("Fit the model first with .fit()")
+        return self.ammi.stability()
+
+    # --------------------------------------------------
+    # Mega-environments
+    # --------------------------------------------------
+    def mega_environments(self):
+        """
+        Identify the best genotype for each environment
+        """
+        if self.ammi is None:
+            raise RuntimeError("Fit the model first with .fit()")
+
+        # Get mean performance per genotype per environment
+        env_means = self.data.groupby([self.genotype, self.environment])[self.response].mean().unstack()
+
+        # For each environment, find the genotype with highest mean
+        winners = {}
+        for env in env_means.columns:
+            best_geno = env_means[env].idxmax()
+            winners[env] = best_geno
+
+        return winners
 
     # --------------------------------------------------
     # Summary

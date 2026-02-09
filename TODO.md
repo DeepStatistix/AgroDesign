@@ -1,13 +1,28 @@
-# TODO: Fix Missing Interaction Line Plots in result.plot()
+# TODO: Implement AgroDesign Behaviors
 
-## Plan Breakdown
-1. Modify `_plot_factorial_split` method in `agrodesign/core/result.py`:
-   - Remove dependency on `highest_significant_effect` for interaction plotting.
-   - Loop through ANOVA table to identify all significant effects (p-value <= 0.05).
-   - For each significant two-way interaction (exactly one ":"), plot `interaction_plot`.
-   - For each significant three-way or higher interaction (two or more ":"), use `simple_effect_plot` to generate conditional interaction plots.
-   - Keep existing boxplots for all effects.
-   - Clean effect names by removing "C(" and ")" before processing.
+## 1. Modify Experiment.run() for console/library mode detection
+- [ ] Import sys in experiment.py
+- [ ] Set self.verbose = sys.stdout.isatty() in run()
+- [ ] Change print(result._full_report()) to self._print(result._full_report()) in _run_doe
 
-## Progress
-- [ ] Step 1: Edit `_plot_factorial_split` method to implement the changes.
+## 2. Modify AgroResult.__repr__ for short snapshot
+- [ ] Change __repr__ to return short scientific snapshot
+- [ ] Include design, response, significant factors, best treatment, expected yield
+
+## 3. Update AgroResult.plot() for save_dir
+- [ ] Change save parameter to save_dir
+- [ ] If save_dir provided, save plots there without showing
+
+## 4. Add AgroResult.export() method
+- [ ] Create export(folder) to make tables/, plots/, report.txt
+- [ ] Save ANOVA table as CSV
+- [ ] Save means tables as CSV
+- [ ] Save all figures as PNG
+- [ ] Save full report as TXT
+
+## 5. Test behaviors
+- [ ] Test console mode: run() prints full report
+- [ ] Test library mode: result = run() silent, result shows short snapshot
+- [ ] Test result.summary() for agronomic interpretation
+- [ ] Test result.plot() and result.plot(save_dir="plots")
+- [ ] Test result.export("folder")

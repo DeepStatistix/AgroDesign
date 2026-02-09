@@ -1,4 +1,4 @@
-def interpret_gxe(anova, vc, h2, blup):
+def interpret_gxe(anova, vc, h2, blup, stability=None, mega_environments=None):
     """
     Plant breeding interpretation of MET trial
     """
@@ -9,13 +9,13 @@ def interpret_gxe(anova, vc, h2, blup):
     # ----------------------------
     # ANOVA significance
     # ----------------------------
-    if anova.loc["C(Genotype)", "PR(>F)"] < 0.05:
+    if anova.loc["C(Genotype)", "p-value"] < 0.05:
         report.append("Significant genotypic differences detected indicating genetic variability.")
 
-    if anova.loc["C(Environment)", "PR(>F)"] < 0.05:
+    if anova.loc["C(Environment)", "p-value"] < 0.05:
         report.append("Environments differed significantly indicating strong environmental influence.")
 
-    if anova.loc["C(Genotype):C(Environment)", "PR(>F)"] < 0.05:
+    if anova.loc["C(Genotype):C(Environment)", "p-value"] < 0.05:
         report.append("Significant G×E interaction detected indicating genotype instability across environments.")
     else:
         report.append("Non-significant G×E interaction indicating stable genotype performance.")

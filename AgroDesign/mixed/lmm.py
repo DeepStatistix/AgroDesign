@@ -140,7 +140,7 @@ class MixedModel:
 
 
     # ------------------------------------------------------------
-    # BLUP extraction
+    # BLUP extraction for random effects
     # ------------------------------------------------------------
     def blup(self, effect):
         """
@@ -178,6 +178,38 @@ class MixedModel:
         df = pd.DataFrame(values, columns=[effect, "BLUP"])
 
         # Sorting safe now
+        df = df.sort_values("BLUP", ascending=False).reset_index(drop=True)
+
+        return df
+
+    # ------------------------------------------------------------
+    # Fixed effect estimates (called BLUPs in context)
+    # ------------------------------------------------------------
+    def fixed_blup(self, fixed):
+        """
+        Return fixed effect estimates (BLUPs for fixed effects)
+
+        fixed: list of fixed effects, e.g. ["Treatment"]
+        """
+        if not hasattr(self, "result"):
+            raise RuntimeError("Fit model first")
+
+        effect = fixed[0]
+        levels = sorted(self.data[effect].unique())
+        intercept = self.result.params['Intercept']
+
+        blups = {}
+        for level in levels:
+            if level == levels[0]:  # reference level
+                blups[level] = intercept
+            else:
+                param_name = f"C({effect})[T.{level}]"
+                if param_name in self.result.params:
+                    blups[level] = intercept + self.result.params[param_name]
+                else:
+                    blups[level] = intercept
+
+        df = pd.DataFrame(list(blups.items()), columns=[effect, "BLUP"])
         df = df.sort_values("BLUP", ascending=False).reset_index(drop=True)
 
         return df

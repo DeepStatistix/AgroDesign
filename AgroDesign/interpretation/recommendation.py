@@ -95,7 +95,24 @@ def generate_recommendation(anova_table, means_tables, design_name):
         if best_levels:
             report.append(", ".join(best_levels) + ".")
 
-        # Do NOT compute or print expected combination mean
-        report.append("No specific treatment combination is statistically superior.")
+        # For factorial, recommend the best combination from the full means
+        if "FACTORIAL" in design_name:
+            # Find the highest order interaction in means_tables
+            interaction_keys = [k for k in means_tables.keys() if ":" in k]
+            if interaction_keys:
+                highest_order = max(interaction_keys, key=lambda x: x.count(":"))
+                best_means = means_tables[highest_order]
+                best = best_means.iloc[0]
+                factor_cols = [
+                    c for c in best_means.columns
+                    if c not in ["Mean", "Replications", "Group"]
+                ]
+                final_level = " × ".join(str(best[c]) for c in factor_cols)
+                report.append(f"Best combination    : {final_level}")
+                report.append(f"Expected mean       : {best['Mean']:.2f}")
+                report.append(f"Recommendation      : Adopt {final_level} for maximizing yield")
+        else:
+            # Do NOT compute or print expected combination mean
+            report.append("No specific treatment combination is statistically superior.")
 
     return "\n".join(report)

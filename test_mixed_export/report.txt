@@ -1,0 +1,16 @@
+==================================================
+AGRODESIGN ANALYSIS
+==================================================
+
+MIXED MODEL ANALYSIS
+Response variable: Yield
+Post-hoc test: Tukey HSD (α = 0.05)
+
+--------------------------------------------------
+ASSUMPTION CHECK
+--------------------------------------------------
+Shapiro-Wilk normality test: p = 0.53855
+Residuals: Normally distributed
+Recommendation: assumptions satisfied
+
+==================================================

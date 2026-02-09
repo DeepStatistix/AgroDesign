@@ -1,1 +1,14 @@
-__version__ = "0.5.0"
+"""
+AgroDesign Package
+==================
+
+A comprehensive statistical analysis package for agricultural experiments.
+"""
+
+__version__ = "0.1.0"
+
+# Import main classes
+from .experiment import Experiment
+from .core.result import AgroResult
+
+__all__ = ["Experiment", "AgroResult"]

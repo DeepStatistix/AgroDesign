@@ -15,6 +15,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from itertools import combinations
 from scipy.stats import shapiro
+import sys
+import inspect
 # core engines
 from agrodesign.analysis.anova import Anova
 from agrodesign.analysis.assumptions import Assumptions
@@ -57,11 +59,6 @@ class Experiment:
 
         self.mode = None
         self.params = {}
-        self.verbose = False
-
-    def _print(self, *args, **kwargs):
-        if self.verbose:
-            print(*args, **kwargs)
 
 
     def _generate_effect_list(self, factors):
@@ -147,13 +144,27 @@ class Experiment:
             raise RuntimeError("No design specified")
 
         if self.mode in ["crd", "rcbd", "factorial", "split"]:
-            return self._run_doe(posthoc, alpha, plots)
-
+            result = self._run_doe(posthoc, alpha, plots)
         elif self.mode == "gxe":
-            return self._run_gxe()
-
+            result = self._run_gxe()
         elif self.mode == "mixed":
-            return self._run_mixed()
+            result = self._run_mixed()
+        else:
+            raise RuntimeError("Invalid design mode")
+
+        # Detect if called from assignment
+        import inspect
+        frame = inspect.currentframe().f_back
+        called_from_assignment = False
+        if frame:
+            code_context = inspect.getframeinfo(frame).code_context
+            if code_context:
+                called_from_assignment = "=" in code_context[0]
+
+        if not called_from_assignment:
+            print(result)
+
+        return result
 
 
 
@@ -311,7 +322,7 @@ class Experiment:
 
             factors_high = highest.replace("C(","").replace(")","").split(":")
 
-            simple_effects(aov, factors_high, posthoc, alpha)
+            result.simple_effects_text = simple_effects(aov, factors_high, posthoc, alpha)
 
             if plots:
                 figs = simple_effect_plot(aov, highest, posthoc, alpha, show=False)
@@ -387,7 +398,7 @@ class Experiment:
         model.fit(self.params["fixed"], self.params["random"])
 
         summary = model.summary()
-        blup = model.blup(self.params["random"])
+        blup = model.fixed_blup(self.params["fixed"])
         result = AgroResult("MIXED MODEL", self.response)
         result.variance_components = summary
         result.blups = blup
@@ -408,8 +419,6 @@ class Experiment:
 
     def _run_gxe(self, export=None):
 
-        self._print("\nG×E ANALYSIS")
-
         gxe = GxEModel(
             self.data,
             self.response,
@@ -423,6 +432,8 @@ class Experiment:
         vc = gxe.summary()
         h2 = gxe.heritability()
         blup = gxe.blup()
+        stability = gxe.stability()
+        mega_env = gxe.mega_environments()
         result = AgroResult("GxE", self.response)
         result.model = gxe  # Store for plotting
 
@@ -430,24 +441,12 @@ class Experiment:
         result.variance_components = vc
         result.heritability = h2
         result.blups = blup
-        result.recommendation = interpret_gxe(anova, vc, h2, blup)
+        result.stability = stability
+        result.mega_environments = mega_env
+        result.recommendation = interpret_gxe(anova, vc, h2, blup, stability, mega_env)
 
         # ---------- ASSUMPTIONS ----------
         stat, p = shapiro(gxe.result.resid)
         result.assumptions["normality_p"] = p
-
-        self._print("\nANOVA")
-        self._print(anova)
-
-        self._print("\nVariance Components")
-        self._print(vc)
-
-        self._print("\nHeritability:", h2)
-
-        self._print("\nGenotype BLUPs")
-        self._print(blup)
-
-        self._print("\nINTERPRETATION")
-        self._print(interpret_gxe(anova, vc, h2, blup))
 
         return result

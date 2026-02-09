@@ -18,18 +18,22 @@ def simple_effects(aov, effect_factors, method="tukey", alpha=0.05):
         A at each (B,C)
         B at each (A,C)
         C at each (A,B)
+
+    Returns:
+        str: Formatted report text
     """
 
     df = aov.data.copy()
     response = aov.response
 
-    print("\n========= SIMPLE EFFECT ANALYSIS =========")
+    report_lines = []
+    report_lines.append("\n========= SIMPLE EFFECT ANALYSIS =========")
 
     for target in effect_factors:
 
         conditioning = [f for f in effect_factors if f != target]
 
-        print(f"\n--- Effect of {target} within {' × '.join(conditioning)} ---")
+        report_lines.append(f"\n--- Effect of {target} within {' × '.join(conditioning)} ---")
 
         # unique combinations of conditioning factors
         levels = [df[c].unique() for c in conditioning]
@@ -46,7 +50,7 @@ def simple_effects(aov, effect_factors, method="tukey", alpha=0.05):
             if subset.empty:
                 continue
 
-            print("\nCondition:", ", ".join(label))
+            report_lines.append("\nCondition: " + ", ".join(label))
 
             sub_aov = Anova(subset, response)
             sub_aov.factorial([target])
@@ -63,4 +67,6 @@ def simple_effects(aov, effect_factors, method="tukey", alpha=0.05):
                 sep = DMRT(sub_aov, alpha=alpha)
 
             means = sep.test()
-            print(means.round(4))
+            report_lines.append(means.round(4).to_string())
+
+    return "\n".join(report_lines)
