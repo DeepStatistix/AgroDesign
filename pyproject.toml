@@ -48,3 +48,8 @@ classifiers = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["agrodesign*"]
+
+
+[tool.setuptools.package-data]
+agrodesign = ["datasets/data/*.csv"]

@@ -1,226 +1,185 @@
-# agrodesign
+# AgroDesign
 
-**agrodesign** is a Python package for **Design of Experiments (DOE)** and **Analysis of Variance (ANOVA)** in agricultural and biological research.
+**AgroDesign** is a unified analysis framework for agricultural experiments.
 
-It provides **agricolae-style functionality in Python**, with correct handling of experimental design structure, error terms, post-hoc mean separation, assumption diagnostics, and journal-ready plots.
+Instead of manually choosing statistical tests, you describe the experiment —
+AgroDesign automatically performs the correct analysis and produces biological recommendations.
 
----
-
-## 🚜 Why agrodesign?
-
-Most Python statistics libraries focus on generic modeling.
-
-**agrodesign is built specifically for agricultural experiments**, where **design structure matters**.
-
-It correctly handles:
-
-- Blocking
-- Factorial interactions
-- Split-plot error strata
-- Treatment and factor mean separation
-- Assumption diagnostics
+It converts experimental data directly into **decisions, reports, figures, and publication-ready outputs**.
 
 ---
 
-## ✨ Features
-
-### Experimental Designs
-- Completely Randomized Design (CRD)
-- Randomized Complete Block Design (RCBD)
-- Factorial experiments (two or more factors)
-- Split-plot design with correct error terms
-
-### Mean Separation
-- Least Significant Difference (LSD)
-- Tukey’s Honest Significant Difference (HSD)
-
-### Assumption Checks
-- Shapiro–Wilk normality test
-- Levene’s test for homogeneity
-- Bartlett’s test (normal data)
-
-### Visualization
-- Mean plots with grouping letters
-- Boxplots with grouping letters
-
-### Reliability
-- Fully tested using **pytest**
-- Design-aware error handling
-
----
-
-## 📦 Installation
-
-### Development installation
+## Install
 
 ```bash
-git clone https://github.com/DeepStatistix/AgroDesign.git
-cd AgroDesign
-pip install -e .
+pip install agrodesign
+```
 
-🧠 Core Workflow
+---
 
-        The typical workflow in agrodesign is:
-        Define the ANOVA model (CRD / RCBD / factorial / split-plot)
-        Examine the ANOVA table
-        Compute treatment or factor means
-        Perform mean separation (LSD / Tukey)
-        Check model assumptions
-        Visualize results
+## 5-Minute Example
 
-🔹 Completely Randomized Design (CRD)
-    Example
-    from agrodesign.analysis.anova import Anova
-    aov = Anova(df, response="Yield")
-    aov.crd("Treatment")
-    
-    Treatment means
-    aov.means("Treatment")
+Randomized Complete Block Design (variety trial)
 
-    Mean separation (LSD)
-    from agrodesign.mean_separation.lsd import LSD
+```python
+import pandas as pd
+from agrodesign.experiment import Experiment
 
-    lsd = LSD(aov)
-    lsd.test()
+df = pd.DataFrame({
+    "Block":["B1","B1","B1","B1",
+             "B2","B2","B2","B2",
+             "B3","B3","B3","B3",
+             "B4","B4","B4","B4"],
+    "Variety":["V1","V2","V3","V4"]*4,
+    "Yield":[48,52,56,60,45,50,54,58,47,51,55,59,46,49,53,57]
+})
 
-🔹 Randomized Complete Block Design (RCBD)
-    Example
-    aov = Anova(df, response="Yield")
-    aov.rcbd(treatment="Treatment", block="Block")
+result = Experiment(df,"Yield").rcbd("Variety","Block").run()
 
-    Means and mean separation
-    aov.means("Treatment")
+result
+```
 
-    from agrodesign.mean_separation.tukey import TukeyHSD
-    TukeyHSD(aov, factor="Treatment").test()
+Output:
 
-🔹 Factorial Experiments (Two or More Factors)
-    Two-factor factorial
-    aov = Anova(df, response="Yield")
-    aov.factorial(["A", "B"])
+```
+AgroResult (RCBD)
+Response: Yield
+Significant factors: Variety
+Best treatment: V4
+Expected yield: 58.50
+```
 
-    Main-effect means
-    aov.factorial_means("A")
-    aov.factorial_means("B")
+---
 
-    Interaction means
-    aov.factorial_means(["A", "B"])
+## What can you do next?
 
-    Tukey HSD for interaction
-    from agrodesign.mean_separation.tukey import TukeyHSD
+```python
+print(result)      # Full scientific report
+result.summary()   # Agronomic recommendation
+result.plot()      # Publication figures
+result.export("report")  # Tables + plots folder
+```
 
-    TukeyHSD(aov, factor=["A", "B"]).test()
+---
 
-🔹 Split-Plot Design
+## Universal Workflow
 
-    Split-plot designs are handled with correct error structures.
+All analyses follow the same pattern:
 
-    Model specification
-    aov = Anova(df, response="Yield")
+```python
+result = (
+    Experiment(data, response)
+    .design(...)
+    .run()
+)
+```
 
-    aov.split_plot(
-        whole_plot="A",
-        sub_plot="B",
-        block="Rep"
-    )
-    
-    Sub-plot and interaction means
-    aov.factorial_means(["A", "B"])
+| Command         | Meaning                         |
+| --------------- | ------------------------------- |
+| `result`        | Decision snapshot               |
+| `print(result)` | Scientific statistical report   |
+| `summary()`     | Farmer/agronomic recommendation |
+| `plot()`        | Visualization                   |
+| `export()`      | Publication files               |
 
-    Mean separation (subplot error)
-    from agrodesign.mean_separation.lsd import LSD
+---
 
-    lsd = LSD(aov)
-    lsd.test()
+## Supported Experimental Designs
 
-📊 Mean Separation Tests
-    Least Significant Difference (LSD)
-    from agrodesign.mean_separation.lsd import LSD
+| Category         | Designs                           |
+| ---------------- | --------------------------------- |
+| Field trials     | CRD, RCBD                         |
+| Input studies    | Factorial, Split-plot             |
+| Random variation | Mixed models (BLUP)               |
+| Breeding trials  | Multi-environment (G×E stability) |
+| Multi-year data  | `.by("Year")` grouped analysis    |
+| Multiple traits  | Automatic combined ranking        |
 
-    lsd = LSD(aov)
-    lsd.test()
-    
-    Tukey Honest Significant Difference (HSD)
-    from agrodesign.mean_separation.tukey import TukeyHSD
-    
-    TukeyHSD(aov, factor="Treatment").test()
-    
+---
 
-Both tests support:
+## Example Analyses
 
-    CRD
-    RCBD
-    factorial main effects
-    factorial interactions
-    split-plot sub-plot effects
+### Factorial experiment
 
-📈 Visualization
-    Mean plot with grouping letters
-    from agrodesign.plots.mean_plot import mean_plot
-    
-    mean_plot(lsd.test(), ylabel="Yield (t ha⁻¹)")
-    
-    Boxplot with grouping letters
-    from agrodesign.plots.boxplot_letters import boxplot_letters
-    
-    boxplot_letters(aov, factor="Treatment")
-    
-    
-    Plots are journal-ready and display grouping letters directly.
+```python
+Experiment(df,"Yield").factorial(["Nitrogen","Spacing"]).run()
+```
 
-🧪 Assumption Checks
+### Mixed model (adjusted performance)
 
-    Assumptions are checked on model residuals.
-    
-    from agrodesign.analysis.assumptions import Assumptions
-    
-    assump = Assumptions(aov)
-    
-    assump.shapiro_test()
-    assump.levene_test("Treatment")
-    assump.bartlett_test("Treatment")
-    assump.qq_plot()
-    
+```python
+Experiment(df,"Yield").mixed(fixed=["Treatment"], random=["Block"]).run()
+```
 
-Supported for all designs:
+### Multi-environment trial (stability)
 
-    CRD
-    RCBD
-    factorial
-    split-plot
-    
-🧪 Testing
-    Run the full test suite:
+```python
+Experiment(df,"Yield").gxe("Genotype","Environment","Rep").run()
+```
 
-    pytest -v
+### Multi-year experiment
 
+```python
+Experiment(df,"Yield").by("Year").rcbd("Variety","Block").run()
+```
 
-All statistical components are validated using automated tests.
+### Multi-trait selection
 
-📊 Supported Designs
-    Design	Status
-    CRD	✅
-    RCBD	✅
-    Factorial (k-factor)	✅
-    Split-plot	✅
-    Strip-plot	Planned
-    Mixed models	Planned
+```python
+Experiment(df,["Yield","Height"]).rcbd("Variety","Block").run()
+```
 
+---
 
-📖 Citation
+## What AgroDesign Handles Automatically
 
-If you use agrodesign in academic work, please cite:
+* Correct ANOVA model construction
+* Error-term selection
+* Mean separation (LSD, Tukey, DMRT)
+* Interaction interpretation rules
+* Mixed-model BLUP ranking
+* G×E stability analysis (AMMI, GGE, FW, ER)
+* Assumption diagnostics
+* Publication-ready plots
 
-Agrodesign (v0.6.0): A Python package for agricultural design of experiments and ANOVA.
-GitHub: https://github.com/DeepStatistix/AgroDesign
+No manual statistical decisions required.
 
-(Planned: Zenodo DOI)
+---
 
-📜 License
+## Philosophy
 
-    MIT License
+Traditional workflow:
 
-👤 Author
+```
+Choose model → run statistics → interpret biology
+```
 
-    Aqib Gul
-    DeepStatistix
+AgroDesign workflow:
+
+```
+Describe experiment → AgroDesign chooses statistics → interpret biology
+```
+
+---
+
+## Citation
+
+If you use AgroDesign in academic work:
+
+**AgroDesign v0.6.0 — Stable Research Release**
+[https://github.com/DeepStatistix/AgroDesign](https://github.com/DeepStatistix/AgroDesign)
+
+(DOI will be added via Zenodo)
+
+---
+
+## License
+
+MIT License
+
+---
+
+## Author
+
+Aqib Gul
+DeepStatistix

@@ -10,5 +10,8 @@ __version__ = "0.6.0"
 # Import main classes
 from .experiment import Experiment
 from .core.result import AgroResult
+from .datasets import load_dataset, list_datasets
+from ._version import __version__
 
-__all__ = ["Experiment", "AgroResult"]
+__all__ = ["Experiment", "load_dataset", "list_datasets"]
+

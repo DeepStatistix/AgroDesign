@@ -1,0 +1,60 @@
+==================================================
+AGRODESIGN ANALYSIS
+==================================================
+
+RCBD ANALYSIS
+Response variable: Yield
+Post-hoc test: Tukey HSD (α = 0.05)
+
+--------------------------------------------------
+ANOVA TABLE
+--------------------------------------------------
+Source       DF          MS      F p-value Significance
+C(Variety)  3.0  106.666667  320.0  <0.001          ***
+C(Block)    3.0    5.666667   17.0  <0.001          ***
+Residual    9.0    0.333333    NaN     nan           ns
+
+Highest significant effect: Variety
+
+Interpretation rule:
+No interaction detected → interpret main effects
+
+--------------------------------------------------
+POST HOC TEST CRITICAL VALUES
+--------------------------------------------------
+HSD(Variety) = 1.2745
+
+--------------------------------------------------
+MEAN COMPARISON (ALL EFFECTS)
+--------------------------------------------------
+
+MAIN EFFECTS
+---------------
+
+Factor Variety
+  Mean Group
+58.500     a
+54.500     b
+50.500     c
+46.500     d
+
+--------------------------------------------------
+AGRONOMIC INTERPRETATION
+--------------------------------------------------
+RCBD INTERPRETATION
+
+Interpretation restricted to C(Variety) due to significant effect.
+Significant factors : Variety, Block.
+No interaction detected. Factors act independently.
+Best levels:
+V4.
+No specific treatment combination is statistically superior.
+
+--------------------------------------------------
+ASSUMPTION CHECK
+--------------------------------------------------
+Shapiro-Wilk normality test: p = 0.06404
+Residuals: Normally distributed
+Recommendation: assumptions satisfied
+
+==================================================

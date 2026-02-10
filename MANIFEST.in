@@ -4,3 +4,4 @@ recursive-include src/agrodesign *.txt
 recursive-include src/agrodesign *.csv
 recursive-include src/agrodesign *.mplstyle
 recursive-include src/agrodesign *.json
+recursive-include src/agrodesign/datasets/data *.csv
