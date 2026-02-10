@@ -5,7 +5,7 @@ AgroDesign Package
 A comprehensive statistical analysis package for agricultural experiments.
 """
 
-__version__ = "0.6.0"
+__version__ = "0.7.0.dev1"
 
 # Import main classes
 from .experiment import Experiment
