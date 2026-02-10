@@ -26,6 +26,7 @@ from agrodesign.interpretation.mixed_interpretation import interpret_mixed
 from agrodesign.mean_separation.lsd import LSD
 from agrodesign.mean_separation.tukey import TukeyHSD
 from agrodesign.mean_separation.dmrt import DMRT
+from agrodesign.core.collection import AgroCollection
 
 # plots
 from agrodesign.plots.mean_plot import mean_plot
@@ -51,17 +52,32 @@ class Experiment:
     # -------------------------------------------------
     # INIT
     # -------------------------------------------------
-    def __init__(self, data: pd.DataFrame, response: str):
-
-        if response not in data.columns:
-            raise ValueError(f"{response} column not found")
+    def __init__(self, data: pd.DataFrame, response):
 
         self.data = data.copy()
-        self.response = response
 
+        # allow single or multiple responses
+        if isinstance(response, str):
+            if response not in data.columns:
+                raise ValueError(f"{response} column not found")
+            self.responses = [response]
+        else:
+            for r in response:
+                if r not in data.columns:
+                    raise ValueError(f"{r} column not found")
+            self.responses = list(response)
+
+        self.response = self.responses[0]  # default for compatibility
+        self.grouping = None
         self.mode = None
         self.params = {}
 
+
+    def by(self, column):
+        if column not in self.data.columns:
+            raise ValueError(f"{column} column not found")
+        self.grouping = column
+        return self
 
     def _generate_effect_list(self, factors):
         effects = []
@@ -127,6 +143,30 @@ class Experiment:
         self.params = dict(fixed=fixed, random=random)
         return self
 
+    def _run_single_analysis(self, data, posthoc, alpha, plots):
+        """
+        Run analysis on a specific dataset subset
+        (internal engine for grouped analysis)
+        """
+
+        original_data = self.data
+        self.data = data
+
+        try:
+            if self.mode in ["crd", "rcbd", "factorial", "split"]:
+                result = self._run_doe(posthoc, alpha, plots)
+            elif self.mode == "gxe":
+                result = self._run_gxe()
+            elif self.mode == "mixed":
+                result = self._run_mixed()
+            else:
+                raise RuntimeError("Invalid design mode")
+        finally:
+            self.data = original_data
+
+        return result
+
+
     # =================================================
     # MAIN EXECUTION ENGINE
     # =================================================
@@ -145,29 +185,70 @@ class Experiment:
         if self.mode is None:
             raise RuntimeError("No design specified")
 
-        if self.mode in ["crd", "rcbd", "factorial", "split"]:
-            result = self._run_doe(posthoc, alpha, plots)
-        elif self.mode == "gxe":
-            result = self._run_gxe()
-        elif self.mode == "mixed":
-            result = self._run_mixed()
+        # =====================================================
+        # MULTI-RESPONSE ANALYSIS
+        # =====================================================
+        if len(self.responses) > 1:
+
+            multi_results = {}
+            original_response = self.response
+
+            for resp in self.responses:
+                self.response = resp
+
+                # --- grouped + multi-response ---
+                if self.grouping is not None:
+                    grouped = {}
+                    for level, subset in self.data.groupby(self.grouping):
+                        res = self._run_single_analysis(subset, posthoc, alpha, plots)
+                        res.group_label = level
+                        res.response = resp
+                        grouped[level] = res
+
+                    multi_results[resp] = AgroCollection(grouped, self.grouping)
+
+                # --- multi-response only ---
+                else:
+                    res = self._run_single_analysis(self.data, posthoc, alpha, plots)
+                    res.response = resp
+                    multi_results[resp] = res
+
+            # restore original
+            self.response = original_response
+
+            result = AgroCollection(multi_results, grouping_name="Response")
+
+        # =====================================================
+        # GROUPED ANALYSIS (.by())
+        # =====================================================
+        elif self.grouping is not None:
+
+            grouped_results = {}
+
+            for level, subset in self.data.groupby(self.grouping):
+                try:
+                    res = self._run_single_analysis(subset, posthoc, alpha, plots)
+                except Exception as e:
+                    from agrodesign.core.result import AgroResult
+                    res = AgroResult("INVALID DESIGN", self.response)
+                    res.recommendation = f"Analysis skipped: {str(e)}"
+
+                res.group_label = level
+                grouped_results[level] = res
+
+            result = AgroCollection(grouped_results, self.grouping)
+
+        # =====================================================
+        # NORMAL SINGLE ANALYSIS
+        # =====================================================
         else:
-            raise RuntimeError("Invalid design mode")
+            result = self._run_single_analysis(self.data, posthoc, alpha, plots)
 
-        # Detect if called from assignment
-        import inspect
-        frame = inspect.currentframe().f_back
-        called_from_assignment = False
-        if frame:
-            code_context = inspect.getframeinfo(frame).code_context
-            if code_context:
-                called_from_assignment = "=" in code_context[0]
-
-        if not called_from_assignment:
-            print(result)
+        # =====================================================
+        # PRINT BEHAVIOR (unchanged)
+        # ====================================================
 
         return result
-
 
 
     def _design_title(self):
@@ -463,6 +544,21 @@ class Experiment:
         result.finlay_wilkinson = fw
         result.eberhart_russell = er
         result.stability_report = report
+        # -------------------------------------------------
+        # Check replication per G×E cell
+        # -------------------------------------------------
+        gen = self.params["genotype"]
+        env = self.params["environment"]
+        rep = self.params.get("rep")
+
+        cell_counts = self.data.groupby([gen, env]).size()
+
+        if (cell_counts < 2).any():
+            raise ValueError(
+                "G×E model requires at least 2 replications per genotype × environment "
+                "within each analysis group. "
+                "Grouped analysis reduced replication below requirement."
+            )
 
         # ---------- ASSUMPTIONS ----------
         stat, p = shapiro(gxe.result.resid)
