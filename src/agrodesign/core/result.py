@@ -20,6 +20,7 @@ class AgroResult:
         self.recommendation = None
         self.figures = []
 
+
         # mixed / breeding
         self.variance_components = None
         self.blups = None
@@ -124,14 +125,16 @@ class AgroResult:
                 self.variance_components.to_csv(f"{folder}/tables/variance_components.csv", index=False)
 
             # Save stability analysis tables
-            if hasattr(self, 'ammi') and self.ammi is not None:
+            if getattr(self, "ammi", None) is not None:
                 self.ammi.stability().to_csv(f"{folder}/tables/ammi_stability.csv", index=False)
                 self.ammi.ranking().to_csv(f"{folder}/tables/ammi_ranking.csv", index=True)
-            if hasattr(self, 'finlay_wilkinson') and self.finlay_wilkinson is not None:
+            if getattr(self, "finlay_wilkinson", None) is not None:
                 self.finlay_wilkinson.classify().to_csv(f"{folder}/tables/fw_regression.csv", index=False)
-            if hasattr(self, 'eberhart_russell') and self.eberhart_russell is not None:
+
+            if getattr(self, "eberhart_russell", None) is not None:
                 self.eberhart_russell.classify().to_csv(f"{folder}/tables/er_stability.csv", index=False)
-            if hasattr(self, 'stability_report') and self.stability_report is not None:
+
+            if getattr(self, "stability_report", None) is not None:
                 self.stability_report.report.to_csv(f"{folder}/tables/stability_ranking.csv", index=True)
 
         # Save all figures as PNG
@@ -329,7 +332,7 @@ class AgroResult:
         # AMMI biplot (if available)
         try:
             from agrodesign.plots.ammi_biplot import ammi_biplot
-            if hasattr(self, 'ammi') and self.ammi is not None:
+            if getattr(self, "ammi", None) is not None:
                 fig = ammi_biplot(self.ammi, show=False)
                 self.figures.append(fig)
         except:
@@ -347,7 +350,7 @@ class AgroResult:
         # Finlay-Wilkinson plot
         try:
             from agrodesign.plots.fw_plot import fw_plot
-            if hasattr(self, 'finlay_wilkinson') and self.finlay_wilkinson is not None:
+            if getattr(self, "finlay_wilkinson", None) is not None:
                 fig = fw_plot(self.finlay_wilkinson, show=False)
                 self.figures.append(fig)
         except:
@@ -356,7 +359,7 @@ class AgroResult:
         # Stability scatter (Eberhart-Russell)
         try:
             from agrodesign.plots.stability_scatter import stability_scatter
-            if hasattr(self, 'eberhart_russell') and self.eberhart_russell is not None:
+            if getattr(self, "eberhart_russell", None) is not None:
                 fig = stability_scatter(self.eberhart_russell, show=False)
                 self.figures.append(fig)
         except:
@@ -430,7 +433,10 @@ class AgroResult:
             for effect_name, means_df in self.means.items():
                 if means_df.empty:
                     continue
-                max_mean = means_df['Mean'].max()
+                if "Mean" not in means_df.columns:
+                    continue
+                max_mean = means_df["Mean"].max()
+
                 if max_mean > best_mean:
                     best_mean = max_mean
                     best_effect = effect_name
@@ -449,7 +455,9 @@ class AgroResult:
         if self.design == "MIXED MODEL" and self.blups is not None and not self.blups.empty:
             best_blup_row = self.blups.iloc[0]
             best_level = best_blup_row.iloc[0]  # First column is the level name
-            best_blup_value = best_blup_row['BLUP']
+            col = [c for c in best_blup_row.index if c.lower() in ["blup","estimate","coef"]][0]
+            best_blup_value = best_blup_row[col]
+
             lines.append(f"Best level: {best_level}")
             lines.append(f"BLUP: {best_blup_value:.2f}")
 
@@ -478,7 +486,7 @@ class AgroResult:
 
     def _full_report(self):
         """Generate full detailed analysis report"""
-        if hasattr(self, '_full_report_text') and self._full_report_text:
+        if getattr(self, "_full_report_text", None):
             report = [self._full_report_text]
         else:
             report = []
@@ -616,7 +624,7 @@ class AgroResult:
                             report.append(f"{row[factors[0]]}   {row[factors[1]]}   {row[factors[2]]}   {row['Mean']:.3f}   {row['Group']}")
 
             # Simple effects
-            if hasattr(self, 'simple_effects_text') and self.simple_effects_text:
+            if getattr(self, "simple_effects_text", None):
                 report.append(self.simple_effects_text)
 
             # Variance Components (for mixed models)
@@ -682,7 +690,7 @@ class AgroResult:
                     report.append(f"{most_stable} is the most stable genotype.")
 
             # Stability Analysis Section
-            if hasattr(self, 'ammi') and self.ammi is not None:
+            if getattr(self, "ammi", None) is not None:
                 report.append("\n" + "=" * 50)
                 report.append("STABILITY ANALYSIS")
                 report.append("=" * 50)

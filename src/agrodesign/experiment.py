@@ -43,6 +43,7 @@ from agrodesign.mixed.stability_report import StabilityReport
 from agrodesign.core.result import AgroResult
 
 
+
 class Experiment:
     """
     Universal AgroDesign interface
@@ -72,6 +73,12 @@ class Experiment:
         self.mode = None
         self.params = {}
 
+    def _clean_data(self, df):
+        df = df.copy(deep=True)
+        for c in df.columns:
+            if df[c].dtype.name == "category":
+                df[c] = df[c].astype(str)
+        return df
 
     def by(self, column):
         if column not in self.data.columns:
@@ -144,27 +151,20 @@ class Experiment:
         return self
 
     def _run_single_analysis(self, data, posthoc, alpha, plots):
-        """
-        Run analysis on a specific dataset subset
-        (internal engine for grouped analysis)
-        """
 
-        original_data = self.data
-        self.data = data
+        local_data = data.copy(deep=True)   # isolate analysis
 
-        try:
-            if self.mode in ["crd", "rcbd", "factorial", "split"]:
-                result = self._run_doe(posthoc, alpha, plots)
-            elif self.mode == "gxe":
-                result = self._run_gxe()
-            elif self.mode == "mixed":
-                result = self._run_mixed()
-            else:
-                raise RuntimeError("Invalid design mode")
-        finally:
-            self.data = original_data
+        if self.mode in ["crd", "rcbd", "factorial", "split"]:
+            return self._run_doe(local_data, posthoc, alpha, plots)
 
-        return result
+        elif self.mode == "gxe":
+            return self._run_gxe(local_data)
+
+        elif self.mode == "mixed":
+            return self._run_mixed(local_data)
+
+        else:
+            raise RuntimeError("Invalid design mode")
 
 
     # =================================================
@@ -200,7 +200,9 @@ class Experiment:
                 if self.grouping is not None:
                     grouped = {}
                     for level, subset in self.data.groupby(self.grouping):
+                        subset = self._clean_data(subset) 
                         res = self._run_single_analysis(subset, posthoc, alpha, plots)
+
                         res.group_label = level
                         res.response = resp
                         grouped[level] = res
@@ -301,7 +303,7 @@ class Experiment:
     # DOE PIPELINE
     # =================================================
 
-    def _run_doe(self, posthoc, alpha, plots):
+    def _run_doe(self, data, posthoc, alpha, plots):
 
         if self.mode == "factorial":
             design_name = "Factorial Experiment"
@@ -309,7 +311,8 @@ class Experiment:
             design_name = self.mode.upper()
 
         result = AgroResult(design_name, self.response)
-        aov = Anova(self.data, self.response)
+        data = self._clean_data(data)
+        aov = Anova(data.copy(), self.response)
         result.aov = aov  # Store for plotting
 
         # ---------- FIT MODEL ----------
@@ -475,9 +478,9 @@ class Experiment:
     # =================================================
 
 
-    def _run_mixed(self):
-
-        model = MixedModel(self.data, self.response)
+    def _run_mixed(self,data):
+        data = self._clean_data(data)
+        model = MixedModel(data, self.response)
         model.fit(self.params["fixed"], self.params["random"])
 
         summary = model.summary()
@@ -492,6 +495,7 @@ class Experiment:
         # ---------- ASSUMPTIONS ----------
         stat, p = shapiro(model.result.resid)
         result.assumptions["normality_p"] = p
+        result.model = model
 
         return result
 
@@ -500,10 +504,10 @@ class Experiment:
     # G×E PIPELINE
     # =================================================
 
-    def _run_gxe(self, export=None):
-
+    def _run_gxe(self, data, export=None):
+        data = self._clean_data(data)
         gxe = GxEModel(
-            self.data,
+            data,
             self.response,
             self.params["genotype"],
             self.params["environment"],
@@ -532,10 +536,10 @@ class Experiment:
         genotype = self.params["genotype"]
         environment = self.params["environment"]
 
-        ammi = AMMI(self.data, genotype, environment, self.response).fit()
-        fw = FinlayWilkinson(self.data, genotype, environment, self.response)
+        ammi = AMMI(data, genotype, environment, self.response).fit()
+        fw = FinlayWilkinson(data, genotype, environment, self.response)
         fw.fit()
-        er = EberhartRussell(self.data, genotype, environment, self.response)
+        er = EberhartRussell(data, genotype, environment, self.response)
         er.fit()
         report = StabilityReport(ammi, fw, er)
         report.build()

@@ -1,6 +1,5 @@
 ---
-title: "AgroDesign: A Design-Aware Framework for Statistical Analysis of
-Agricultural Experiments in Pythons"
+title: "AgroDesign: A Design-Aware Framework for Statistical Analysis of Agricultural Experiments in Python"
 tags:
   - Python
   - agriculture
@@ -15,14 +14,14 @@ authors:
     corresponding: true
 
 affiliations:
-  - name: IBPR,Sher-e-Kashmir University University of Agricultural Sciences and Technology of Kashmir, J&K, 190025, India
+  - name: IBPR,Sher-e-Kashmir University University of Agricultural Sciences and Technology of Kashmir, J&K, India
     index: 1
 
 date: 2026
 bibliography: paper.bib
 ---
 
-**Summary**
+# Summary
 
 AgroDesign provides an interface for describing experimental designs,
 fitting ANOVA models, and summarizing comparisons. Its coverage ranges
@@ -38,7 +37,7 @@ figures commonly required in agronomic reporting. Support for grouped
 analyses and multiple response variables enables evaluation of
 multi-year or multi-trait experiments within a consistent framework.
 
-**Statement of Need**
+# Statement of Need
 
 Agronomic and biological experiments often use experimental designs like
 randomized block designs, factorial arrangements, split-plot layouts,
@@ -58,7 +57,7 @@ AgroDesign is a tool that meets this need with a design-aware analytical
 interface that links experimental layout specification, statistical
 inference, and agronomic interpretation under a single Python workflow.
 
-**State of the Field**
+# State of the Field
 
 In agricultural research, the R package agricolae provides tools for
 experimental designs and mean separation procedures tailored to field
@@ -81,7 +80,7 @@ fills this specific research need by developing an interface to unify
 experimental design specification, ANOVA modeling, and separation and
 interpretation, all within a single Python workflow.
 
-**Software design**
+# Software design
 
 AgroDesign is implemented as a domain-specific analytical interface
 rather than a general statistical modeling library. Instead of requiring
@@ -102,40 +101,40 @@ re-implementing statistical algorithms. This design allows the software
 to maintain statistical correctness while providing an interface aligned
 with terminology used in agricultural and biological experimentation.
 
-**Functionality**
+# Functionality
 
 AgroDesign's primary features are:
 
-**- Experimental Designs:** Supports CRD, RCBD, factorial designs,
+- **Experimental Designs:** Supports CRD, RCBD, factorial designs,
 split-plot designs with nested whole- and sub-plot factors, and
 genotype-by-environment (G×E) two-factor designs. Future releases will
 extend to more complex layouts like strip-plot designs.
 
-**- Post-hoc Tests:** Fisher\'s LSD procedure, as well as Tukey\'s HSD
+- **Post-hoc Tests:** Fisher\'s LSD procedure, as well as Tukey\'s HSD
 with grouping letters, are all provided with easy extension of any ANOVA
 procedure.
 
-**-- Grouped & Multi-trait Analysis:** Enables the analysis of repeated
+- **Grouped & Multi-trait Analysis:** Enables the analysis of repeated
 data, such as those from a multi-site study or even several response
 variables. Results from a grouped ANOVA table are shown for all the
 groups; letters are also displayed within the blocks/trait.
 
-**- Automatic Error Term Selection:** For a nested design (e.g., split
+- **Automatic Error Term Selection:** For a nested design (e.g., split
 plot), AgroDesign can automatically detect which error term to select
 for each factor. The user doesn't have to select which sub-plot and
 which whole-plot error to use.
 
-**- Assumption Diagnostics:** This component allows users to run the
+- **Assumption Diagnostics:** This component allows users to run the
 Shapiro-Wilk test on residual normality, Bartlett or Levene tests on
 homoscedasticity, as well as plot residual and QQ plots to check
 residual assumptions.
 
-**- Plotting:** Allows for the generation of journal-ready plots of
+- **Plotting:** Allows for the generation of journal-ready plots of
 treatment means with error bars, including annotated grouping letters
 from post-hoc tests. The plots can be exported as Matplotlib objects or
 files.
 
-**Example**
+# Example 
 
 AgroDesign is designed to provide a concise workflow from experimental
 data to agronomic interpretation. The following example demonstrates
@@ -187,7 +186,7 @@ package emphasizes interpretable outputs alongside statistical tables;
 the results are thus easily understandable by agronomists and biological
 researchers alike.
 
-**Limitations and future direction**
+# Limitations and future direction
 
 AgroDesign centres on standard analysis of variance-based experimental
 design. Consequently, it will not apply to all forms of statistical
@@ -223,7 +222,7 @@ The future development of AgroDesign will be extended in three areas:
     These changes will continue to improve the strength of AgroDesign
     both as a tool in research and teaching in experimental science.
 
-**Conclusion**
+# Conclusion
 
 AgroDesign provides aunified Python interface for the analysis of
 designed experiments commonly used in agricultural and biological
@@ -242,7 +241,7 @@ regard, the package works as both a practical analytical tool and a
 basis for future methodological development in experimental data
 analysis.
 
-**AI usage disclosure**
+# AI usage disclosure
 
 Generative AI tools were used to assist with language editing,
 organisation of manuscript text, and drafting of documentation examples.

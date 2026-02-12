@@ -175,7 +175,7 @@ If you use AgroDesign in academic work:
 
 ## License
 
-MIT License
+Apache-2.0 open-source license
 
 ---
 

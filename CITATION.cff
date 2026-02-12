@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+title: AgroDesign
+message: If you use this software, please cite it.
+authors:
+  - family-names: Gul
+    given-names: Aqib
+version: 0.7.0
+date-released: 2026-02-10
+license: Apache-2.0 open-source license

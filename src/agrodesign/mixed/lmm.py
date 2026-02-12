@@ -65,10 +65,15 @@ class MixedModel:
         formula = f"{self.response} ~ {fixed_terms}"
 
         # Fit model
+        import patsy
+
+        eval_env = patsy.EvalEnvironment.capture(1)
+
         self.model = smf.mixedlm(
             formula,
             data=self.data,
-            groups=self.data[group]
+            groups=self.data[random[0]],
+            eval_env=eval_env
         )
 
         self.result = self.model.fit(reml=True)
