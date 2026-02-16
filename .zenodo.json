@@ -1,0 +1,20 @@
+{
+  "title": "AgroDesign: Design-aware statistical analysis of agricultural experiments",
+  "upload_type": "software",
+  "description": "AgroDesign is a Python package for analysis of designed agricultural experiments including CRD, RCBD, factorial, split-plot and GxE trials with ANOVA, mean separation and diagnostics.",
+  "creators": [
+    {
+      "name": "Gul, Aqib",
+      "affiliation": "Sher-e-Kashmir University of Agricultural Sciences and Technology of Kashmir"
+    }
+  ],
+  "license": "Apache-2.0",
+  "keywords": [
+    "agriculture",
+    "statistics",
+    "ANOVA",
+    "experimental design",
+    "plant breeding",
+    "Python"
+  ]
+}
