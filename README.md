@@ -164,14 +164,24 @@ Describe experiment → AgroDesign chooses statistics → interpret biology
 
 ## Citation
 
-If you use AgroDesign in academic work:
+If you use AgroDesign in research, please cite:
 
-**AgroDesign v0.6.0 — Stable Research Release**
-[https://github.com/DeepStatistix/AgroDesign](https://github.com/DeepStatistix/AgroDesign)
-
-(DOI will be added via Zenodo)
+Gul, A. (2026). *AgroDesign: Design-aware statistical analysis of agricultural experiments* (Version 1.0.2). Zenodo. https://doi.org/10.5281/zenodo.18655252
 
 ---
+
+### BibTeX
+
+```bibtex
+@software{gul_agrodesign_2026,
+  author  = {Gul, Aqib},
+  title   = {AgroDesign: Design-aware statistical analysis of agricultural experiments},
+  year    = {2026},
+  version = {1.0.2},
+  doi     = {10.5281/zenodo.18655252},
+  url     = {https://github.com/DeepStatistix/AgroDesign}
+}
+```
 
 ## License
 

@@ -1,9 +1,15 @@
 cff-version: 1.2.0
-title: AgroDesign
-message: If you use this software, please cite it.
+title: "AgroDesign: Design-aware statistical analysis of agricultural experiments"
+message: "If you use this software, please cite it as below."
+type: software
 authors:
   - family-names: Gul
     given-names: Aqib
-version: 0.7.0
-date-released: 2026-02-10
-license: Apache-2.0 open-source license
+    affiliation: Sher-e-Kashmir University of Agricultural Sciences and Technology of Kashmir
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.18655252
+repository-code: https://github.com/DeepStatistix/AgroDesign
+license: Apache-2.0
+version: 1.0.2
+date-released: 2026-02-11
